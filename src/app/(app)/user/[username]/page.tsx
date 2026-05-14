@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
   User,
   Award,
-  Flame,
+
   BookOpen,
   UserPlus,
   UserCheck,
@@ -249,7 +249,7 @@ export default function PublicProfilePage({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-3 gap-3 mb-6">
         <div className="bg-white rounded-2xl border border-[var(--border)] p-4">
           <div className="flex items-center gap-1.5 mb-2">
             <BookOpen size={13} className="text-[var(--foreground-soft)]" />
@@ -263,13 +263,6 @@ export default function PublicProfilePage({
             <span className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)]">Иероглифов</span>
           </div>
           <div className="text-lg font-semibold tabular-nums">{profile.charsLearned}</div>
-        </div>
-        <div className="bg-gradient-to-br from-orange-50 to-amber-50/50 rounded-2xl border border-orange-200/60 p-4">
-          <div className="flex items-center gap-1.5 mb-2">
-            <Flame size={13} className="text-orange-500" />
-            <span className="text-[10px] uppercase tracking-wider text-[var(--foreground-muted)]">Серия</span>
-          </div>
-          <div className="text-lg font-semibold tabular-nums">{profile.streak} дн.</div>
         </div>
         <div className="bg-white rounded-2xl border border-[var(--border)] p-4">
           <div className="flex items-center gap-1.5 mb-2">

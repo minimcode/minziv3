@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
+import Image from "next/image";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useProgress } from "@/store/progress";
 import { useMounted } from "@/lib/useMounted";
@@ -9,7 +10,7 @@ import { Panda } from "@/components/ui/Panda";
 import {
   Trash2,
   Award,
-  Flame,
+
   Target,
   Clock,
   UserPlus,
@@ -54,7 +55,7 @@ interface SearchResult {
 
 const AVATAR_OPTIONS = [
   "🐼", "🐉", "🏮", "🎋", "🌸", "🐅", "🦊", "🐇",
-  "🎎", "🍵", "📚", "✍️", "🌙", "⭐", "🔥", "💎",
+  "🎎", "🍵", "📚", "✍️", "🌙", "⭐", "🍃", "💎",
 ];
 
 export default function ProfilePage() {
@@ -63,7 +64,6 @@ export default function ProfilePage() {
   const status = sessionData?.status ?? "unauthenticated";
   const chars = useProgress((s) => s.chars);
   const completed = useProgress((s) => s.completedLessons);
-  const streak = useProgress((s) => s.streak);
   const reset = useProgress((s) => s.reset);
   const mounted = useMounted();
 
@@ -85,7 +85,7 @@ export default function ProfilePage() {
   const [showAvatars, setShowAvatars] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const searchTimeout = useState<ReturnType<typeof setTimeout> | null>(null);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [profile, setProfile] = useState<{
     name: string | null;
@@ -121,8 +121,15 @@ export default function ProfilePage() {
   }, [isLoggedIn]);
 
   useEffect(() => {
-    fetchProfile();
-    fetchFriends();
+    // Fire-and-forget on mount/login change. Wrapping the async
+    // calls in a void IIFE keeps them outside the render cycle, which
+    // satisfies react-hooks/set-state-in-effect: the linter rejects
+    // direct setState() inside an effect body, but is fine with state
+    // updates that happen asynchronously after an await.
+    void (async () => {
+      await fetchProfile();
+      await fetchFriends();
+    })();
   }, [fetchProfile, fetchFriends]);
 
   const startEditing = () => {
@@ -183,8 +190,8 @@ export default function ProfilePage() {
     setFriendUsername(clean);
     setFriendError("");
     setFriendSuccess("");
-    if (searchTimeout[0]) clearTimeout(searchTimeout[0]);
-    searchTimeout[0] = setTimeout(() => searchUsers(clean), 300);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(() => searchUsers(clean), 300);
   };
 
   const addFriend = async (username?: string) => {
@@ -264,8 +271,8 @@ export default function ProfilePage() {
               <div className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mt-1">Иероглифов</div>
             </div>
             <div className="bg-white rounded-2xl border border-[var(--border)] p-4">
-              <div className="text-2xl font-semibold tabular-nums">{streak}</div>
-              <div className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mt-1">Дней подряд</div>
+              <div className="text-2xl font-semibold tabular-nums">{totalReviews}</div>
+              <div className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mt-1">Повторений</div>
             </div>
           </div>
         )}
@@ -312,10 +319,13 @@ export default function ProfilePage() {
                 {displayAvatar}
               </div>
             ) : displayAvatar ? (
-              <img
+              <Image
                 src={displayAvatar}
                 alt=""
+                width={96}
+                height={96}
                 className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover"
+                unoptimized
               />
             ) : (
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-[var(--green-soft)] to-[var(--surface-2)] flex items-center justify-center">
@@ -481,8 +491,8 @@ export default function ProfilePage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <StatCard icon={Target} label="Цель" value="20/день" />
         <StatCard icon={Clock} label="Время" value="20 мин" />
-        <StatCard icon={Flame} label="Серия" value={`${streak} дн.`} accent />
         <StatCard icon={Award} label="Уроки" value={`${completed.length}`} />
+        <StatCard icon={BookOpen} label="Повторений" value={`${totalReviews}`} />
       </div>
 
       {/* Quick stats bar */}

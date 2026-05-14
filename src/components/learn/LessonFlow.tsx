@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { Panda } from "@/components/ui/Panda";
 import { ProgressBar } from "@/components/ui/Progress";
 import { ArrowRight, Volume2 } from "lucide-react";
-import { cn } from "@/lib/cn";
+
 
 type Step =
   | { kind: "intro"; charIdx: number }
@@ -23,6 +23,19 @@ type Step =
   | { kind: "practice"; charIdx: number; taskIdx: 0 | 1 }
   | { kind: "grammar" }
   | { kind: "summary" };
+
+// Stage labels per §8 of the Minzi spec. The lesson runner shows the
+// stage name at the top of the screen instead of «1 / 52» — because
+// 1 / 52 is flashcard energy and we don't do that.
+const STAGE_LABEL: Record<Step["kind"], string> = {
+  intro: "Знакомство",
+  stroke: "Порядок черт",
+  guided: "Обведите",
+  recall: "Напишите по памяти",
+  practice: "Контекст",
+  grammar: "Грамматика",
+  summary: "Иероглиф у вас",
+};
 
 interface Props {
   lesson: Lesson;
@@ -81,26 +94,27 @@ export function LessonFlow({ lesson, characters, pool, onExit }: Props) {
 
   return (
     <div className="w-full max-w-3xl mx-auto py-6 px-4 sm:px-6">
-      {/* Top bar */}
-      <div className="flex items-center justify-between mb-6">
-        {(step.kind === "intro" || step.kind === "stroke" || step.kind === "grammar" || step.kind === "summary") ? (
-          <button
-            onClick={onExit}
-            className="text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
-          >
-            ← Выход
-          </button>
-        ) : (
-          <div className="text-sm text-[var(--foreground-muted)] opacity-40 cursor-not-allowed select-none">
-            ← Выход
-          </div>
-        )}
-        <div className="flex-1 mx-4">
-          <ProgressBar value={stepIdx + 1} max={totalSteps} />
+      {/* Top bar — stage name as the dominant label, faint progress bar 
+          beneath. No «1 / 52» counter (per §19.2). */}
+      <div className="mb-6 flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          {(step.kind === "intro" || step.kind === "stroke" || step.kind === "grammar" || step.kind === "summary") ? (
+            <button
+              onClick={onExit}
+              className="text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+            >
+              ← Выход
+            </button>
+          ) : (
+            <div className="text-sm text-[var(--foreground-muted)] opacity-40 cursor-not-allowed select-none">
+              ← Выход
+            </div>
+          )}
+          <span className="text-[11px] uppercase tracking-[0.22em] text-[var(--foreground-soft)]">
+            {STAGE_LABEL[step.kind]}
+          </span>
         </div>
-        <span className="text-xs text-[var(--foreground-muted)] tabular-nums">
-          {stepIdx + 1} / {totalSteps}
-        </span>
+        <ProgressBar value={stepIdx + 1} max={totalSteps} />
       </div>
 
       {/* Step body */}
@@ -115,9 +129,6 @@ export function LessonFlow({ lesson, characters, pool, onExit }: Props) {
             : null;
         return (
           <Card className="p-8 sm:p-10 flex flex-col items-center text-center gap-5 float-up">
-            <div className="text-xs uppercase tracking-[0.2em] text-[var(--foreground-soft)]">
-              Иероглиф {step.charIdx + 1} из {characters.length}
-            </div>
             <div className="relative">
               <HanziStrokes
                 key={`intro-${c.hanzi}`}
@@ -161,10 +172,7 @@ export function LessonFlow({ lesson, characters, pool, onExit }: Props) {
       {step.kind === "stroke" && (
         <Card className="p-8 sm:p-10 flex flex-col items-center gap-6 float-up">
           <div className="text-center">
-            <div className="text-xs uppercase tracking-[0.2em] text-[var(--foreground-soft)]">
-              Порядок черт
-            </div>
-            <div className="mt-2 pinyin text-[var(--foreground-muted)]">
+            <div className="pinyin text-[var(--foreground-muted)]">
               {characters[step.charIdx].pinyin} ·{" "}
               {meaningRu(characters[step.charIdx])}
             </div>
@@ -184,10 +192,7 @@ export function LessonFlow({ lesson, characters, pool, onExit }: Props) {
       {step.kind === "guided" && (
         <Card className="p-8 sm:p-10 flex flex-col items-center gap-5 float-up">
           <div className="text-center">
-            <div className="text-xs uppercase tracking-[0.2em] text-[var(--foreground-soft)]">
-              Пишите по образцу
-            </div>
-            <div className="mt-2 pinyin text-[var(--foreground-muted)]">
+            <div className="pinyin text-[var(--foreground-muted)]">
               {characters[step.charIdx].pinyin} ·{" "}
               {meaningRu(characters[step.charIdx])}
             </div>
@@ -216,10 +221,7 @@ export function LessonFlow({ lesson, characters, pool, onExit }: Props) {
       {step.kind === "recall" && (
         <Card className="p-8 sm:p-10 flex flex-col items-center gap-5 float-up">
           <div className="text-center">
-            <div className="text-xs uppercase tracking-[0.2em] text-[var(--foreground-soft)]">
-              Напишите по памяти
-            </div>
-            <div className="mt-2 pinyin text-[var(--foreground-muted)]">
+            <div className="pinyin text-[var(--foreground-muted)]">
               {characters[step.charIdx].pinyin} ·{" "}
               {meaningRu(characters[step.charIdx])}
             </div>
@@ -247,9 +249,6 @@ export function LessonFlow({ lesson, characters, pool, onExit }: Props) {
 
       {step.kind === "practice" && (
         <Card className="p-8 sm:p-10 flex flex-col items-center gap-5 float-up">
-          <div className="text-xs uppercase tracking-[0.2em] text-[var(--foreground-soft)]">
-            Закрепляем
-          </div>
           <PracticeTask
             key={`practice-${characters[step.charIdx].hanzi}`}
             target={characters[step.charIdx]}
@@ -268,9 +267,6 @@ export function LessonFlow({ lesson, characters, pool, onExit }: Props) {
 
       {step.kind === "grammar" && lesson.grammarNote && (
         <Card className="p-8 sm:p-10 flex flex-col gap-4 float-up">
-          <div className="text-xs uppercase tracking-[0.2em] text-[var(--foreground-soft)]">
-            Грамматика
-          </div>
           <h2 className="text-2xl font-display font-medium">
             {lesson.grammarNote.title}
           </h2>
@@ -303,30 +299,29 @@ export function LessonFlow({ lesson, characters, pool, onExit }: Props) {
 
       {step.kind === "summary" && (
         <Card className="p-8 sm:p-10 flex flex-col items-center text-center gap-5 float-up">
-          <Panda mood="success" size={140} />
-          <h2 className="text-3xl font-display font-medium">Урок завершён!</h2>
-          <p className="text-[var(--foreground-muted)] max-w-md">
-            Вы изучили {characters.length}{" "}
-            {plural(characters.length, "иероглиф", "иероглифа", "иероглифов")}.
-            Они появятся в ваших повторениях в нужный момент.
-          </p>
-          <div className="grid grid-cols-5 gap-2 mt-1">
+          {/* Per §8 stage 8 (Settle) + §18 (session close): no 
+              confetti, no «Excellent!» — just ownership. */}
+          <Panda mood="resting" size={140} />
+          <div className="flex items-baseline gap-3">
             {characters.map((c) => (
-              <div
+              <span
                 key={c.hanzi}
-                className={cn(
-                  "card-soft px-2 py-3 flex flex-col items-center gap-1"
-                )}
+                className="hanzi text-5xl text-[var(--ink)]"
               >
-                <span className="hanzi text-2xl">{c.hanzi}</span>
-                <span className="pinyin text-[10px] text-[var(--foreground-muted)]">
-                  {c.pinyin}
-                </span>
-              </div>
+                {c.hanzi}
+              </span>
             ))}
           </div>
+          <p className="text-[var(--foreground-muted)] max-w-md leading-relaxed">
+            Сегодня вы записали {characters.length}{" "}
+            {plural(characters.length, "иероглиф", "иероглифа", "иероглифов")}.
+            {" "}Они теперь живут в вашей библиотеке.
+          </p>
+          <p className="text-sm text-[var(--foreground-soft)] max-w-md">
+            До завтра.
+          </p>
           <Button onClick={finish} size="lg">
-            Завершить
+            Закрыть
           </Button>
         </Card>
       )}

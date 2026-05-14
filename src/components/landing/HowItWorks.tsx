@@ -107,11 +107,8 @@ export function HowItWorks() {
               </div>
             </div>
             <div className="card-soft mt-3 px-2 py-1.5">
-              <div className="text-[var(--green-deep)] text-xs font-medium">
-                Отлично!
-              </div>
-              <div className="text-[10px] text-[var(--foreground-muted)]">
-                Продолжайте в том же духе.
+              <div className="text-[var(--foreground-muted)] text-xs">
+                你 теперь живёт в вашей библиотеке.
               </div>
             </div>
             <button className="btn btn-primary w-full mt-3 h-9 text-xs">

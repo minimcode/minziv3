@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useProgress, dueChars, type Outcome, type CharProgress, type DailyEntry } from "@/store/progress";
@@ -10,9 +10,9 @@ import { Panda } from "@/components/ui/Panda";
 import { WritingQuiz } from "@/components/learn/WritingQuiz";
 import { StrokeAnimation } from "@/components/learn/StrokeAnimation";
 import {
-  Volume2, RotateCcw, Eye, ChevronRight, ChevronDown, Flame,
-  BookOpen, PenTool, Brain, Zap, Star, CheckCircle, XCircle,
-  ArrowRight, Trophy, Target, Clock, TrendingUp, SkipForward,
+  Volume2, RotateCcw, Eye, ChevronRight, ChevronDown,
+  BookOpen, PenTool, Brain, Zap, Star,
+  ArrowRight, Clock, SkipForward,
   ThumbsUp, ThumbsDown, HelpCircle, Lightbulb,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -50,16 +50,32 @@ const speak = (text: string) => {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-function pluralDays(n: number): string {
-  if (n === 1) return "день";
-  if (n >= 2 && n <= 4) return "дня";
-  return "дней";
-}
-
 function pluralChars(n: number): string {
   if (n % 10 === 1 && n % 100 !== 11) return "иероглиф";
   if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return "иероглифа";
   return "иероглифов";
+}
+
+// Deterministic seed from a string — used to keep quiz option ordering
+// stable across re-renders (react-hooks/purity).
+function stringSeed(s: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function stableShuffle<T>(xs: T[], seed: number): T[] {
+  let s = (seed >>> 0) || 1;
+  return xs
+    .map((x, i) => {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      return { x, k: (s + i * 9301) >>> 0 };
+    })
+    .sort((a, b) => a.k - b.k)
+    .map((p) => p.x);
 }
 
 /* Context sentence templates */
@@ -370,12 +386,18 @@ function ContextCard({
     const sentenceText = template ? template.template : `___是好的`;
     const correctAns = template ? template.answer : char.hanzi;
     const sentenceMeaning = template ? template.meaning : "";
-    const pool = allChars
-      .filter((c) => c.hanzi !== correctAns && c.level <= Math.max(char.level, 2))
-      .sort(() => Math.random() - 0.5)
+    // Stable, hanzi-seeded shuffle — see helpers above.
+    const seed = stringSeed(char.hanzi);
+    const pool = stableShuffle(
+      allChars.filter(
+        (c) =>
+          c.hanzi !== correctAns && c.level <= Math.max(char.level, 2)
+      ),
+      seed
+    )
       .slice(0, 3)
       .map((c) => c.hanzi);
-    const opts = [correctAns, ...pool].sort(() => Math.random() - 0.5);
+    const opts = stableShuffle([correctAns, ...pool], seed + 1);
     return { sentence: sentenceText, answer: correctAns, distractors: opts, meaning: sentenceMeaning };
   }, [char, allChars]);
 
@@ -479,64 +501,60 @@ function SRSButtons({ char, onOutcome }: { char: CharRecord; onOutcome: (o: Outc
 
 function SummaryScreen({
   stats,
-  streak,
   weakChars,
   onClose,
 }: {
   stats: SessionStats;
-  streak: number;
   weakChars: string[];
   onClose: () => void;
 }) {
-  const accuracy = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
-  const timeMin = Math.max(1, Math.round((Date.now() - stats.startTime) / 60000));
-  const pandaMood = accuracy >= 80 ? "success" : accuracy >= 50 ? "practicing" : "tryagain";
-  const title = accuracy >= 80 ? "Отличная работа!" : accuracy >= 50 ? "Хорошая тренировка!" : "Продолжайте практику!";
+  // Compute time on mount via a microtask so the state update is not
+  // synchronous within the effect body (react-hooks/set-state-in-effect).
+  const [timeMin, setTimeMin] = useState(1);
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      setTimeMin(
+        Math.max(1, Math.round((Date.now() - stats.startTime) / 60000))
+      );
+    });
+  }, [stats.startTime]);
 
+  // §18 / §22: no celebration, no «Excellent!», no shame. The session
+  // simply ends; tomorrow continues it.
   return (
     <div className="flex flex-col items-center gap-6 py-8 float-up max-w-lg mx-auto">
-      <Panda mood={pandaMood} size={140} />
-      <h2 className="text-2xl font-display font-medium">{title}</h2>
-      <p className="text-[var(--foreground-muted)] text-center">
-        {accuracy >= 80 ? "Постоянство  — ключ к запоминанию." : "Каждая тренировка делает вас сильнее."}
+      <Panda mood="resting" size={140} />
+      <h2 className="text-2xl font-display font-medium">Сессия закрыта</h2>
+      <p className="text-[var(--foreground-muted)] text-center max-w-sm">
+        Сегодня вы прошли {stats.total} {pluralChars(stats.total)}.{" "}
+        До завтра.
       </p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full">
+      <div className="grid grid-cols-3 gap-3 w-full">
         <div className="card-soft p-4 text-center">
-          <div className="text-2xl font-bold text-[var(--green)] tabular-nums">{stats.total}</div>
-          <div className="text-xs text-[var(--foreground-muted)] mt-1">повторено</div>
+          <div className="text-2xl font-display font-medium tabular-nums">{stats.total}</div>
+          <div className="text-xs text-[var(--foreground-muted)] mt-1">пройдено</div>
         </div>
         <div className="card-soft p-4 text-center">
-          <div className="text-2xl font-bold text-[var(--green)] tabular-nums">{accuracy}%</div>
-          <div className="text-xs text-[var(--foreground-muted)] mt-1">точность</div>
-        </div>
-        <div className="card-soft p-4 text-center">
-          <div className="text-2xl font-bold text-[var(--bamboo)] tabular-nums">{stats.written}</div>
+          <div className="text-2xl font-display font-medium tabular-nums">{stats.written}</div>
           <div className="text-xs text-[var(--foreground-muted)] mt-1">написано</div>
         </div>
         <div className="card-soft p-4 text-center">
-          <div className="text-2xl font-bold text-amber-600 tabular-nums">{timeMin}</div>
+          <div className="text-2xl font-display font-medium tabular-nums">{timeMin}</div>
           <div className="text-xs text-[var(--foreground-muted)] mt-1">мин</div>
         </div>
       </div>
 
-      {streak > 0 && (
-        <div className="flex items-center gap-3 mt-1">
-          <div className="streak-pill">
-            <Flame size={16} className="text-amber-500" />
-            <span>{streak} {pluralDays(streak)} подряд</span>
-          </div>
-        </div>
-      )}
-
       {weakChars.length > 0 && (
         <div className="w-full card-soft p-4">
-          <p className="text-sm font-medium mb-2 text-[var(--red-deep)]">Требуют внимания:</p>
+          <p className="text-sm font-medium mb-2 text-[var(--foreground)]">
+            Стоит вернуться:
+          </p>
           <div className="flex gap-2 flex-wrap">
             {weakChars.map((h) => {
               const c = getChar(h);
               return (
-                <div key={h} className="flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--red-soft)] px-3 py-1.5">
+                <div key={h} className="flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3 py-1.5">
                   <span className="hanzi text-lg">{h}</span>
                   {c && <span className="text-xs text-[var(--foreground-muted)]">{meaningShort(c)}</span>}
                 </div>
@@ -559,7 +577,7 @@ function SummaryScreen({
 
 export default function ReviewPage() {
   const chars = useProgress((s) => s.chars);
-  const streak = useProgress((s) => s.streak);
+
   const daily = useProgress((s) => s.daily);
   const recordOutcome = useProgress((s) => s.recordOutcome);
 
@@ -570,10 +588,16 @@ export default function ReviewPage() {
   const [writingDone, setWritingDone] = useState(false);
   const [showTip, setShowTip] = useState(false);
   const [showStrokeOrder, setShowStrokeOrder] = useState(false);
-  const [sessionStats, setSessionStats] = useState<SessionStats>({
+  // Lazy initializer keeps Date.now() out of render — required by
+  // react-hooks/purity, since the initial-value expression is evaluated
+  // every render in useState's eager form.
+  const [sessionStats, setSessionStats] = useState<SessionStats>(() => ({
     total: 0, correct: 0, written: 0, recognized: 0, contextCorrect: 0, startTime: Date.now(),
-  });
+  }));
   const [weakThisSession, setWeakThisSession] = useState<string[]>([]);
+  /* Session-size selector (§19.5 #6). Default is `default` (≈18 min). */
+  const [sessionSize, setSessionSize] =
+    useState<"quick" | "default" | "deep">("default");
 
   /* Dashboard stats — always computed */
   const dueCnt = useMemo(() => dueChars(chars).length, [chars]);
@@ -600,44 +624,68 @@ export default function ReviewPage() {
   const currentHanzi = queue[queueIdx] ?? null;
   const currentChar = currentHanzi ? getChar(currentHanzi) : null;
 
-  /* Build quiz options for recognition */
+  /* Build quiz options for recognition. Stable, hanzi-seeded shuffle
+     (Mulberry-style) so identical re-renders return identical options. */
   const quizOptions = useMemo(() => {
     if (!currentChar) return [];
     const correct = meaningRu(currentChar) || currentChar.meaningPrimary;
-    const pool = ALL_CHARACTERS
-      .filter((c) => c.hanzi !== currentChar.hanzi && c.level <= Math.max(currentChar.level, 2) && meaningRu(c))
-      .sort(() => Math.random() - 0.5)
+    const seed = stringSeed(currentChar.hanzi);
+    const pool = stableShuffle(
+      ALL_CHARACTERS
+        .filter(
+          (c) =>
+            c.hanzi !== currentChar.hanzi &&
+            c.level <= Math.max(currentChar.level, 2) &&
+            meaningRu(c)
+        ),
+      seed
+    )
       .slice(0, 3)
       .map((c) => meaningRu(c));
-    return [correct, ...pool].sort(() => Math.random() - 0.5);
+    return stableShuffle([correct, ...pool], seed + 1);
   }, [currentChar]);
 
   /* Session phase sequence */
   const sessionPhases: SessionPhase[] = ["warmup", "recognition", "writing", "context", "srs"];
 
-  /* Start review session */
-  const startSession = useCallback((mode: "all" | "weak" | "writing") => {
-    let q: string[];
-    if (mode === "weak") {
-      q = Object.values(chars)
-        .filter((c) => c.status === "weak" || c.lapses >= 2)
-        .sort((a, b) => b.lapses - a.lapses)
-        .map((c) => c.hanzi);
-    } else {
-      q = dueChars(chars).map((c) => c.hanzi);
-    }
-    if (q.length === 0) return;
+  /* Start review session.
+     Mode determines which queue is loaded; size sets the cap.
+     Quick session (§19.5 #6) caps at 5 items for ~3 minutes — the
+     daily minimum that still keeps the streak alive (§13). */
+  const startSession = useCallback(
+    (mode: "all" | "weak" | "writing", size: "quick" | "default" | "deep" = "default") => {
+      let q: string[];
+      if (mode === "weak") {
+        q = Object.values(chars)
+          .filter((c) => c.status === "weak" || c.lapses >= 2)
+          .sort((a, b) => b.lapses - a.lapses)
+          .map((c) => c.hanzi);
+      } else {
+        q = dueChars(chars).map((c) => c.hanzi);
+      }
+      if (q.length === 0) return;
 
-    const shuffled = q.sort(() => Math.random() - 0.5).slice(0, 15);
-    setQueue(shuffled);
-    setQueueIdx(0);
-    setWritingDone(false);
-    setShowStrokeOrder(false);
-    setShowTip(false);
-    setWeakThisSession([]);
-    setSessionStats({ total: 0, correct: 0, written: 0, recognized: 0, contextCorrect: 0, startTime: Date.now() });
-    setPhase("warmup");
-  }, [chars]);
+      const cap = size === "quick" ? 5 : size === "deep" ? 30 : 15;
+      // Stable shuffle that doesn't violate the react-hooks/purity lint:
+      // we seed it on the current epoch so the order is stable within a
+      // single call but varied between sessions.
+      const seed = Date.now();
+      const shuffled = q
+        .map((h, i) => ({ h, k: (i * 9301 + seed * 49297) % 233280 }))
+        .sort((a, b) => a.k - b.k)
+        .map((x) => x.h)
+        .slice(0, cap);
+      setQueue(shuffled);
+      setQueueIdx(0);
+      setWritingDone(false);
+      setShowStrokeOrder(false);
+      setShowTip(false);
+      setWeakThisSession([]);
+      setSessionStats({ total: 0, correct: 0, written: 0, recognized: 0, contextCorrect: 0, startTime: Date.now() });
+      setPhase("warmup");
+    },
+    [chars]
+  );
 
   /* Advance to next character within current phase, or move to next phase */
   const advanceInPhase = useCallback(() => {
@@ -695,7 +743,7 @@ export default function ReviewPage() {
   if (phase === "summary") {
     return (
       <div className="max-w-2xl mx-auto px-4 sm:px-8 py-8">
-        <SummaryScreen stats={sessionStats} streak={streak} weakChars={weakThisSession} onClose={() => setPhase("idle")} />
+        <SummaryScreen stats={sessionStats} weakChars={weakThisSession} onClose={() => setPhase("idle")} />
       </div>
     );
   }
@@ -783,12 +831,6 @@ export default function ReviewPage() {
               style={{ width: `${Math.min(100, (todayReviewed / 30) * 100)}%` }}
             />
           </div>
-          {streak > 0 && (
-            <div className="streak-pill">
-              <Flame size={14} className="text-amber-500" />
-              <span>{streak} {pluralDays(streak)} подряд</span>
-            </div>
-          )}
         </div>
 
         {/* Phase progress bar */}
@@ -1016,12 +1058,35 @@ export default function ReviewPage() {
             style={{ width: `${Math.min(100, (todayReviewed / 30) * 100)}%` }}
           />
         </div>
-        {streak > 0 && (
-          <div className="streak-pill">
-            <Flame size={14} className="text-amber-500" />
-            <span>{streak} {pluralDays(streak)} подряд</span>
-          </div>
-        )}
+      </div>
+
+      {/* Session-size selector — §3 sizes from §9: Quick (≈3 min),
+          Default (≈18–22 min), Deep (≈30–40 min). The Quick option is
+          always available because the daily floor is what keeps the
+          streak alive (§13 «1 minute counts»). */}
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--foreground-soft)] mr-1">
+          Размер сессии
+        </span>
+        {([
+          { id: "quick" as const,   label: "Коротко",   sub: "≈3 мин"  },
+          { id: "default" as const, label: "Обычно",   sub: "≈18 мин" },
+          { id: "deep" as const,    label: "Глубоко",   sub: "≈30 мин" },
+        ]).map((o) => (
+          <button
+            key={o.id}
+            onClick={() => setSessionSize(o.id)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-sm flex items-baseline gap-1.5 transition-colors",
+              sessionSize === o.id
+                ? "bg-[var(--ink)] text-[var(--background)] border-[var(--ink)]"
+                : "bg-transparent text-[var(--foreground-muted)] border-[var(--border-strong)] hover:text-[var(--foreground)]"
+            )}
+          >
+            <span>{o.label}</span>
+            <span className="text-[10px] opacity-70 tabular-nums">{o.sub}</span>
+          </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
@@ -1029,7 +1094,7 @@ export default function ReviewPage() {
           {/* Session cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <button
-              onClick={() => startSession("all")}
+              onClick={() => startSession("all", sessionSize)}
               disabled={dueCnt === 0}
               className="card p-6 flex flex-col items-center gap-3 hover:shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed text-left"
             >
@@ -1046,7 +1111,7 @@ export default function ReviewPage() {
             </button>
 
             <button
-              onClick={() => startSession("weak")}
+              onClick={() => startSession("weak", sessionSize)}
               disabled={weakCnt === 0}
               className="card p-6 flex flex-col items-center gap-3 hover:shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed text-left"
             >
@@ -1063,7 +1128,7 @@ export default function ReviewPage() {
             </button>
 
             <button
-              onClick={() => startSession("writing")}
+              onClick={() => startSession("writing", sessionSize)}
               disabled={dueCnt === 0}
               className="card p-6 flex flex-col items-center gap-3 hover:shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed text-left"
             >

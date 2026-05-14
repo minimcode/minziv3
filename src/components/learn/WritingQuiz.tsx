@@ -30,6 +30,12 @@ interface WriterAPI {
   getCharacterData: () => Promise<{ strokes: unknown[] }>;
 }
 
+/**
+ * Writing canvas. Per §7 of the Minzi spec («the no-fail philosophy»):
+ * a wrong stroke fades silently — no red banner, no «Wrong!» text — and
+ * the canvas returns to its previous state. The only on-screen reward
+ * is the stroke itself transitioning to full ink.
+ */
 export function WritingQuiz({
   hanzi,
   size = 300,
@@ -44,9 +50,16 @@ export function WritingQuiz({
   const writerRef = useRef<WriterAPI | null>(null);
   const [strokeIdx, setStrokeIdx] = useState(0);
   const [totalStrokes, setTotalStrokes] = useState(0);
-  const [feedback, setFeedback] = useState<
-    null | { tone: "ok" | "warn" | "info"; text: string }
-  >(hideInitialFeedback ? null : { tone: "info", text: showOutline ? "Пишите по образцу — система проверит порядок и направление черт." : "Напишите иероглиф по памяти. Система проверит порядок и направление черт." });
+  // We surface one quiet instruction line on the first render so it's clear
+  // what the user is being asked to do. After that, the canvas speaks for
+  // itself — successes ink in, failures fade silently.
+  const [instruction, setInstruction] = useState<string | null>(
+    hideInitialFeedback
+      ? null
+      : showOutline
+      ? "Пишите по образцу."
+      : "Напишите по памяти."
+  );
 
   const onCompleteRef = useRef(onComplete);
   const onMistakeRef = useRef(onMistake);
@@ -71,11 +84,16 @@ export function WritingQuiz({
           padding: 8,
           showCharacter: false,
           showOutline,
-          strokeColor: "#2a2c28",
+          // sumi-ink for correct strokes; warm grey for the in-progress
+          // attempt. Mistakes draw in light grey and fade — never red.
+          strokeColor: "#1A1814",
           outlineColor: "#e6e3da",
-          drawingColor: "#c43a3a",
-          highlightColor: "#2e7d4f",
+          drawingColor: "#9ca09a",
+          highlightColor: "#1A1814",
           highlightOnComplete: false,
+          // Per §7 of the spec: stroke 2 misses → dotted guide; stroke
+          // 3 misses → ghost outline. Hanzi Writer surfaces both via the
+          // same hint mechanism.
           showHintAfterMisses: 2,
           charDataLoader(c, onCompleteCb) {
             fetch(
@@ -95,22 +113,19 @@ export function WritingQuiz({
         setTotalStrokes(data.strokes.length);
         writer.quiz({
           showHintAfterMisses: 2,
-          onMistake: (info) => {
+          onMistake: () => {
             if (cancelled) return;
-            setFeedback({
-              tone: "warn",
-              text:
-                info.mistakesOnStroke >= 2
-                  ? "Подсказка появится сейчас — посмотри на правильное направление."
-                  : "Не та черта — попробуй ещё раз. Обратите внимание на направление.",
-            });
+            // Silence is the feedback. Just forward the event upstream so
+            // the parent can count attempts.
             onMistakeRef.current?.();
           },
           onCorrectStroke: (info) => {
             if (cancelled) return;
             const done = info.strokeNum + 1;
             setStrokeIdx(done);
-            setFeedback({ tone: "ok", text: "Верно. Следующая черта." });
+            // Clear the initial instruction once writing starts; the
+            // stroke-by-stroke ink darkening is the reward.
+            setInstruction(null);
             onCorrectStrokeRef.current?.(info.strokeNum, data.strokes.length);
           },
           onComplete: (info) => {
@@ -118,13 +133,9 @@ export function WritingQuiz({
             setTimeout(() => {
               writer.showCharacter();
             }, 100);
-            setFeedback({
-              tone: "ok",
-              text:
-                info.totalMistakes === 0
-                  ? "Отлично! Без ошибок."
-                  : `Готово! Ошибок: ${info.totalMistakes}.`,
-            });
+            // The closing copy belongs to the lesson stage (Settle), not
+            // this widget — so we say nothing here.
+            setInstruction(null);
             onCompleteRef.current?.({
               totalMistakes: info.totalMistakes,
               totalStrokes: data.strokes.length,
@@ -145,19 +156,21 @@ export function WritingQuiz({
   const restart = useCallback(() => {
     if (containerRef.current) containerRef.current.innerHTML = "";
     setStrokeIdx(0);
-    setFeedback({ tone: "info", text: "Начинаем заново." });
+    setInstruction(showOutline ? "Пишите по образцу." : "Напишите по памяти.");
     const writer = writerRef.current as { quiz?: WriterAPI["quiz"] } | null;
     if (writer && writer.quiz) {
       writer.quiz({
         onMistake: () => onMistakeRef.current?.(),
         onCorrectStroke: (info) => {
           setStrokeIdx(info.strokeNum + 1);
+          setInstruction(null);
           onCorrectStrokeRef.current?.(info.strokeNum, totalStrokes);
         },
         onComplete: (info) => {
           setTimeout(() => {
             writerRef.current?.showCharacter();
           }, 100);
+          setInstruction(null);
           onCompleteRef.current?.({
             totalMistakes: info.totalMistakes,
             totalStrokes,
@@ -165,7 +178,7 @@ export function WritingQuiz({
         },
       });
     }
-  }, [totalStrokes]);
+  }, [totalStrokes, showOutline]);
 
   return (
     <div className={cn("flex flex-col items-center gap-3", className)}>
@@ -198,19 +211,12 @@ export function WritingQuiz({
           <RotateCcw size={16} />
         </button>
       </div>
-      {feedback && (
+      {instruction && (
         <div
-          className={cn(
-            "rounded-[14px] border px-4 py-2.5 text-sm float-up max-w-[360px] text-center",
-            feedback.tone === "ok" &&
-              "border-[color:rgba(46,125,79,0.25)] bg-[var(--green-soft)] text-[var(--green-deep)]",
-            feedback.tone === "warn" &&
-              "border-[color:rgba(196,58,58,0.22)] bg-[var(--red-soft)] text-[var(--red-deep)]",
-            feedback.tone === "info" &&
-              "border-[var(--border)] bg-[var(--surface-2)] text-[var(--foreground-muted)]"
-          )}
+          className="px-4 py-2 text-sm text-center text-[var(--foreground-muted)] max-w-[360px]"
+          aria-live="polite"
         >
-          {feedback.text}
+          {instruction}
         </div>
       )}
     </div>

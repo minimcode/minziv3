@@ -4,31 +4,24 @@ import { useState } from "react";
 import { StrokeAnimation } from "@/components/learn/StrokeAnimation";
 import { Card } from "@/components/ui/Card";
 import { Panda } from "@/components/ui/Panda";
-import { StreakPill } from "@/components/ui/StreakPill";
 import { Settings, ArrowRight, Volume2 } from "lucide-react";
+
+// Stage names used on the lesson runner, per §8 of the Minzi spec.
+const STAGE = "Обведите";
 
 export function HeroDemo() {
   const [strokeCount, setStrokeCount] = useState(0);
-  const totalSteps = 7;
-  const completedSteps = 3;
 
   return (
     <div className="relative">
       <Card className="p-5 sm:p-6 max-w-[480px] mx-auto">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <span className="text-sm tabular-nums text-[var(--foreground-muted)]">
-              {completedSteps} / {totalSteps}
+            <span className="text-xs uppercase tracking-[0.2em] text-[var(--foreground-soft)]">
+              {STAGE}
             </span>
-            <div className="h-1.5 flex-1 rounded-full bg-[var(--surface-3)] overflow-hidden">
-              <div
-                className="h-full bg-[var(--green)]"
-                style={{ width: `${(completedSteps / totalSteps) * 100}%` }}
-              />
-            </div>
           </div>
           <div className="flex items-center gap-2 ml-3">
-            <StreakPill count={7} />
             <button className="btn btn-ghost h-8 w-8 p-0" aria-label="Настройки">
               <Settings size={14} />
             </button>
@@ -59,21 +52,11 @@ export function HeroDemo() {
               {Array.from({ length: Math.max(7, strokeCount) }).map((_, i) => (
                 <div
                   key={i}
-                  className={`h-7 w-7 rounded-md flex items-center justify-center text-[10px] font-medium border ${
-                    i === 0
-                      ? "border-[var(--red)] text-[var(--red-deep)] bg-[var(--red-soft)]"
-                      : "border-[var(--border)] text-[var(--foreground-muted)]"
-                  }`}
+                  className="h-7 w-7 rounded-md flex items-center justify-center text-[10px] font-medium border border-[var(--border)] text-[var(--foreground-muted)]"
                 >
                   {i + 1}
                 </div>
               ))}
-            </div>
-            <div className="card-soft p-3 mt-3 text-sm">
-              <div className="font-medium text-[var(--green-deep)]">Отлично!</div>
-              <div className="text-xs text-[var(--foreground-muted)] mt-0.5">
-                Продолжайте в том же духе.
-              </div>
             </div>
           </div>
         </div>

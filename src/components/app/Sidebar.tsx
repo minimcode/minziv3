@@ -10,17 +10,19 @@ import {
   BarChart3,
   User,
   Settings,
-  Flame,
+  Leaf,
   PenTool,
 } from "lucide-react";
 import Image from "next/image";
 import { ProgressBar } from "@/components/ui/Progress";
+import { StreakDots } from "@/components/ui/StreakDots";
 import { useProgress } from "@/store/progress";
 import { useMounted } from "@/lib/useMounted";
 
 const NAV = [
   { href: "/learn", label: "Учиться", icon: GraduationCap },
   { href: "/review", label: "Повторение", icon: Repeat },
+  { href: "/garden", label: "Сад", icon: Leaf },
   { href: "/dictionary", label: "Словарь", icon: Book },
   { href: "/graphemes", label: "Графемы", icon: PenTool },
   { href: "/stats", label: "Статистика", icon: BarChart3 },
@@ -31,7 +33,6 @@ const DAILY_GOAL_MIN = 20;
 
 export function Sidebar() {
   const pathname = usePathname();
-  const streak = useProgress((s) => s.streak);
   const daily = useProgress((s) => s.daily);
   const mounted = useMounted();
 
@@ -46,10 +47,10 @@ export function Sidebar() {
         <Image src="/icon.svg" alt="" width={36} height={36} priority />
         <div className="flex flex-col leading-tight">
           <span className="text-xl font-display font-semibold tracking-tight">
-            minizi
+            Minzi
           </span>
           <span className="text-[11px] text-[var(--foreground-muted)] tracking-wide">
-            учу китайский
+            китайский · письмо · память
           </span>
         </div>
       </Link>
@@ -87,25 +88,12 @@ export function Sidebar() {
           />
         </div>
 
-        {/* Streak block */}
+        {/* Continuity block — last 30 days as ink dots, no number shown. */}
         <div className="rounded-[14px] bg-[var(--surface-2)] border border-[var(--border)] px-3 py-2.5">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)] mb-1">
-            Серия
+          <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)] mb-2">
+            Непрерывность
           </div>
-          <div className="flex items-center gap-2">
-            <Flame
-              size={18}
-              className="text-[var(--red)]"
-              fill={
-                mounted && streak > 0 ? "var(--red)" : "transparent"
-              }
-            />
-            <span className="text-sm font-medium tabular-nums">
-              {mounted ? streak : 0}
-              {"\u00A0"}
-              {pluralRu(mounted ? streak : 0, "день", "дня", "дней")}
-            </span>
-          </div>
+          <StreakDots daily={mounted ? daily : []} days={30} columns={15} />
         </div>
 
         {/* Daily goal */}
@@ -135,6 +123,8 @@ export function Sidebar() {
   );
 }
 
+// kept for potential future use; currently unused.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function pluralRu(n: number, one: string, few: string, many: string): string {
   const mod10 = n % 10;
   const mod100 = n % 100;
