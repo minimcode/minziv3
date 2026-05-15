@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
-import { GraduationCap, Repeat, Book, User, PenTool } from "lucide-react";
+import { GraduationCap, Repeat, Book, User, PenTool, Leaf } from "lucide-react";
 
 const NAV = [
   { href: "/learn", label: "Учить", icon: GraduationCap },
   { href: "/review", label: "Повтор", icon: Repeat },
+  { href: "/garden", label: "Сад", icon: Leaf },
   { href: "/dictionary", label: "Словарь", icon: Book },
   { href: "/graphemes", label: "Графемы", icon: PenTool },
   { href: "/profile", label: "Профиль", icon: User },
@@ -24,14 +25,14 @@ export function BottomNav() {
             key={href}
             href={href}
             className={cn(
-              "flex-1 flex flex-col items-center gap-1 py-2.5 text-[11px]",
+              "flex-1 min-w-0 flex flex-col items-center gap-1 py-2.5 px-1 text-[10px] leading-tight",
               active
                 ? "text-[var(--green-deep)]"
                 : "text-[var(--foreground-muted)]"
             )}
           >
-            <Icon size={20} />
-            {label}
+            <Icon size={18} />
+            <span className="truncate w-full text-center">{label}</span>
           </Link>
         );
       })}

@@ -81,6 +81,11 @@ model UserProfile {
   dailyMinutes  Int     @default(15)         // minutes per day
   streakCount   Int     @default(0)
   streakUpdated DateTime?
+  // Synced from the client-side progress store. SQLite has no JSON type
+  // so these are stringified JSON arrays of the same shapes used in
+  // src/store/progress.ts (CompletedLessonIds: string[], Daily: DailyEntry[]).
+  completedLessons String?
+  dailyJson        String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useProgress, dueChars, type Outcome, type CharProgress, type DailyEntry } from "@/store/progress";
+import { useViewportWidth } from "@/lib/useViewport";
 import { getChar, meaningRu, meaningShort, ALL_CHARACTERS, type CharRecord } from "@/lib/characters";
 import { Card } from "@/components/ui/Card";
 import { Panda } from "@/components/ui/Panda";
@@ -54,6 +55,21 @@ function pluralChars(n: number): string {
   if (n % 10 === 1 && n % 100 !== 11) return "иероглиф";
   if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return "иероглифа";
   return "иероглифов";
+}
+
+/** Format a duration in milliseconds as a short Russian phrase like
+ *  "через 3 ч" or "через 2 дн". Used for the SRS "next review" hint. */
+function formatRelativeIn(ms: number): string {
+  if (ms <= 0) return "сейчас";
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 60) {
+    if (minutes < 1) return "сейчас";
+    return `через ${minutes} мин`;
+  }
+  const hours = Math.round(ms / 3_600_000);
+  if (hours < 24) return `через ${hours} ч`;
+  const days = Math.round(ms / 86_400_000);
+  return `через ${days} дн`;
 }
 
 // Deterministic seed from a string — used to keep quiz option ordering
@@ -272,7 +288,9 @@ function WarmupCard({
         </svg>
         {/* Character */}
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-[120px] leading-none text-zinc-800 select-none" style={{ fontFamily: "var(--font-brush), 'KaiTi', 'STKaiti', serif" }}>{char.hanzi}</span>
+          <span className="hanzi text-[120px] leading-none select-none">
+            {char.hanzi}
+          </span>
         </div>
       </div>
 
@@ -581,6 +599,13 @@ export default function ReviewPage() {
   const daily = useProgress((s) => s.daily);
   const recordOutcome = useProgress((s) => s.recordOutcome);
 
+  /* Writing canvas size — responsive to viewport so mobile (≤480px) gets
+     a smaller canvas that fits next to its action buttons without
+     horizontal scroll. */
+  const vw = useViewportWidth();
+  const writingSize =
+    vw === null ? 300 : vw < 380 ? 220 : vw < 480 ? 260 : 300;
+
   /* Session state */
   const [phase, setPhase] = useState<SessionPhase>("idle");
   const [queue, setQueue] = useState<string[]>([]);
@@ -602,6 +627,27 @@ export default function ReviewPage() {
   /* Dashboard stats — always computed */
   const dueCnt = useMemo(() => dueChars(chars).length, [chars]);
   const weakCnt = useMemo(() => Object.values(chars).filter((c) => c.status === "weak" || c.lapses >= 2).length, [chars]);
+  /* SRS visibility — how many already-studied characters are *not yet* due
+     (so the user understands where their progress went; without this the
+     dashboard appears empty after a lesson because SRS intervals
+     correctly defer the first review). `now` is kept in state and ticked
+     by an effect to satisfy `react-hooks/purity` (Date.now is impure). */
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  useEffect(() => {
+    void Promise.resolve().then(() => setNowMs(Date.now()));
+    const id = window.setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const upcoming = useMemo(() => {
+    if (nowMs === null) return { count: 0, nextDueMs: 0 };
+    const future = Object.values(chars).filter((c) => c.due > nowMs);
+    if (future.length === 0) return { count: 0, nextDueMs: 0 };
+    const next = future.reduce(
+      (min, c) => (c.due < min ? c.due : min),
+      Infinity,
+    );
+    return { count: future.length, nextDueMs: next - nowMs };
+  }, [chars, nowMs]);
   const todayEntry = useMemo(() => {
     const t = today();
     return daily.find((e) => e.date === t);
@@ -930,17 +976,28 @@ export default function ReviewPage() {
                       Напишите иероглиф. Соблюдайте порядок черт.
                     </p>
 
-                    <div className="flex items-start gap-4">
+                    <div className="flex items-start gap-3 sm:gap-4 max-w-full">
                       <div className="relative">
                         {showStrokeOrder ? (
-                          <div className="rounded-[18px] border border-[var(--border)] bg-white overflow-hidden" style={{ width: 324, height: 324, padding: 12 }}>
-                            <StrokeAnimation hanzi={currentChar.hanzi} size={300} autoplay />
+                          <div
+                            className="rounded-[18px] border border-[var(--border)] bg-white overflow-hidden"
+                            style={{
+                              width: writingSize + 24,
+                              height: writingSize + 24,
+                              padding: 12,
+                            }}
+                          >
+                            <StrokeAnimation
+                              hanzi={currentChar.hanzi}
+                              size={writingSize}
+                              autoplay
+                            />
                           </div>
                         ) : (
                           <WritingQuiz
                             key={`${currentHanzi}-${queueIdx}`}
                             hanzi={currentChar.hanzi}
-                            size={300}
+                            size={writingSize}
                             showOutline
                             hideInitialFeedback
                             onComplete={() => {
@@ -952,22 +1009,22 @@ export default function ReviewPage() {
                       </div>
 
                       {/* Side buttons */}
-                      <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-2 sm:gap-3 shrink-0">
                         <button
                           onClick={() => { setShowStrokeOrder(false); setWritingDone(false); }}
-                          className="card-soft w-14 h-14 flex flex-col items-center justify-center gap-0.5 hover:bg-[var(--surface-2)] transition-colors"
+                          className="card-soft w-12 h-12 sm:w-14 sm:h-14 flex flex-col items-center justify-center gap-0.5 hover:bg-[var(--surface-2)] transition-colors"
                           title="Заново"
                         >
-                          <RotateCcw size={20} className="text-[var(--foreground-muted)]" />
-                          <span className="text-[10px] text-[var(--foreground-muted)]">Заново</span>
+                          <RotateCcw size={18} className="text-[var(--foreground-muted)]" />
+                          <span className="text-[9px] sm:text-[10px] text-[var(--foreground-muted)]">Заново</span>
                         </button>
                         <button
                           onClick={() => setShowStrokeOrder(!showStrokeOrder)}
-                          className="card-soft w-14 h-14 flex flex-col items-center justify-center gap-0.5 hover:bg-[var(--surface-2)] transition-colors"
+                          className="card-soft w-12 h-12 sm:w-14 sm:h-14 flex flex-col items-center justify-center gap-0.5 hover:bg-[var(--surface-2)] transition-colors"
                           title="Показать порядок"
                         >
-                          <Eye size={20} className="text-[var(--foreground-muted)]" />
-                          <span className="text-[10px] text-[var(--foreground-muted)] leading-tight text-center">Порядок</span>
+                          <Eye size={18} className="text-[var(--foreground-muted)]" />
+                          <span className="text-[9px] sm:text-[10px] text-[var(--foreground-muted)] leading-tight text-center">Порядок</span>
                         </button>
                       </div>
                     </div>
@@ -1180,9 +1237,49 @@ export default function ReviewPage() {
           {dueCnt === 0 && (
             <Card className="p-8 text-center">
               <Panda mood="success" size={100} className="mx-auto mb-4" />
-              <h2 className="text-xl font-display font-medium mb-2">Все повторения выполнены!</h2>
-              <p className="text-[var(--foreground-muted)]">Возвращайтесь позже или изучите новый урок.</p>
-              <Link href="/learn" className="btn btn-primary mt-4 inline-flex">Продолжить обучение</Link>
+              <h2 className="text-xl font-display font-medium mb-2">
+                Все повторения выполнены!
+              </h2>
+              <p className="text-[var(--foreground-muted)]">
+                {upcoming.count > 0 ? (
+                  <>
+                    {upcoming.count} {pluralChars(upcoming.count)} вернётся{" "}
+                    {formatRelativeIn(upcoming.nextDueMs)}.
+                  </>
+                ) : (
+                  <>Возвращайтесь позже или изучите новый урок.</>
+                )}
+              </p>
+              <Link href="/learn" className="btn btn-primary mt-4 inline-flex">
+                Продолжить обучение
+              </Link>
+            </Card>
+          )}
+
+          {/* SRS visibility — explain why some studied characters
+              haven't yet appeared in the review queue. Hidden when there
+              are none in the future. */}
+          {upcoming.count > 0 && (
+            <Card className="p-5 sm:p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-[var(--surface-2)] flex items-center justify-center shrink-0">
+                  <Clock size={18} className="text-[var(--foreground-muted)]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-medium mb-1">
+                    Ближайшие повторения
+                  </h3>
+                  <p className="text-sm text-[var(--foreground-muted)]">
+                    Ещё {upcoming.count} {pluralChars(upcoming.count)} в очереди
+                    — следующий{" "}
+                    <span className="text-[var(--foreground)] font-medium">
+                      {formatRelativeIn(upcoming.nextDueMs)}
+                    </span>
+                    . Иероглифы возвращаются по интервалам: 1 день → 3 дня →
+                    неделя → месяц. Так память укрепляется без перегрузки.
+                  </p>
+                </div>
+              </div>
             </Card>
           )}
         </div>

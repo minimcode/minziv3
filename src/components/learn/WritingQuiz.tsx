@@ -86,10 +86,13 @@ export function WritingQuiz({
           showOutline,
           // sumi-ink for correct strokes; warm grey for the in-progress
           // attempt. Mistakes draw in light grey and fade — never red.
+          // After 2 misses Hanzi Writer highlights the correct stroke as a
+          // hint; we render that hint in jade-green so it's unambiguously
+          // visible against the dark ink character.
           strokeColor: "#1A1814",
           outlineColor: "#e6e3da",
           drawingColor: "#9ca09a",
-          highlightColor: "#1A1814",
+          highlightColor: "#2e7d4f",
           highlightOnComplete: false,
           // Per §7 of the spec: stroke 2 misses → dotted guide; stroke
           // 3 misses → ghost outline. Hanzi Writer surfaces both via the

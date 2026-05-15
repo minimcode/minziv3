@@ -6,10 +6,10 @@ import { useProgress } from "@/store/progress";
 import { useMounted } from "@/lib/useMounted";
 import { Card } from "@/components/ui/Card";
 import { Panda } from "@/components/ui/Panda";
+import { Plant, stageForState } from "@/components/garden/Plant";
 import {
   MEMORY_STATES,
   memoryStateFor,
-  toneClasses,
   type MemoryState,
 } from "@/lib/memoryState";
 import { getChar } from "@/lib/characters";
@@ -17,9 +17,16 @@ import { getChar } from "@/lib/characters";
 /**
  * §15 / §19.5 #4 — The Garden.
  *
- * The Garden is the visible result of work. Each character the user
- * has touched is shown as a tile, grouped by memory state. There is
- * no XP, no level, no «Garden 73%». The Garden is the library itself.
+ * Every character the user has touched is rendered as an actual plant
+ * whose growth stage matches its memory state:
+ *
+ *   Знакомлюсь  → семечко с первым листком
+ *   Учу         → росток с двумя листами
+ *   Свежее      → побег с бутоном
+ *   Зрелое      → куст с цветами
+ *   Укоренилось → деревце-бонсай
+ *
+ * No XP, no level, no «Garden 73%». The Garden is the library itself.
  */
 export default function GardenPage() {
   const chars = useProgress((s) => s.chars);
@@ -36,7 +43,7 @@ export default function GardenPage() {
     if (!mounted) return out;
     // Most-recently-touched first within each state.
     const ordered = Object.values(chars).sort(
-      (a, b) => (b.lastSeen ?? 0) - (a.lastSeen ?? 0)
+      (a, b) => (b.lastSeen ?? 0) - (a.lastSeen ?? 0),
     );
     for (const p of ordered) {
       out[memoryStateFor(p)].push(p.hanzi);
@@ -65,10 +72,7 @@ export default function GardenPage() {
             Каждый иероглиф, который вы запишете, появится здесь.
             Один в день — этого достаточно.
           </p>
-          <Link
-            href="/learn"
-            className="btn btn-primary mt-2"
-          >
+          <Link href="/learn" className="btn btn-primary mt-2">
             Открыть первый иероглиф
           </Link>
         </Card>
@@ -78,52 +82,76 @@ export default function GardenPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8">
-      <header className="mb-8">
+      <header className="mb-6">
         <div className="text-xs uppercase tracking-[0.2em] text-[var(--foreground-soft)] mb-1">
           Сад
         </div>
         <h1 className="text-2xl font-display font-medium">Ваш сад</h1>
         <p className="text-sm text-[var(--foreground-muted)] mt-1 max-w-xl">
-          Каждый иероглиф — росток. Со временем одни укрепляются,
-          другие переходят в долгую память.
+          Каждый иероглиф — растение. Со временем семечки превращаются
+          в кусты, а потом и в деревья — это и есть память.
         </p>
       </header>
 
-      <div className="space-y-8">
+      {/* Legend — quick visual reference for what each growth stage
+          means, so the user can read the meadow at a glance. */}
+      <Card className="p-4 sm:p-5 mb-8">
+        <div className="grid grid-cols-5 gap-2 sm:gap-4">
+          {(Object.keys(MEMORY_STATES) as MemoryState[]).map((s) => (
+            <div
+              key={s}
+              className="flex flex-col items-center text-center"
+              title={MEMORY_STATES[s].hint}
+            >
+              <Plant state={s} size={48} />
+              <div className="text-[10px] sm:text-xs font-medium mt-1 text-[var(--foreground)]">
+                {stageForState(s)}
+              </div>
+              <div className="text-[9px] sm:text-[10px] text-[var(--foreground-soft)] leading-tight">
+                {MEMORY_STATES[s].label}
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <div className="space-y-10">
         {(Object.keys(MEMORY_STATES) as MemoryState[])
           .filter((s) => grouped[s].length > 0)
           .map((s) => {
             const meta = MEMORY_STATES[s];
             return (
               <section key={s}>
-                <div className="flex items-baseline gap-3 mb-3">
-                  <h2
-                    className={`text-sm font-medium uppercase tracking-[0.18em] ${toneClasses(
-                      meta.tone
-                    )} px-2 py-0.5 rounded border-0`}
-                  >
+                <div className="flex items-baseline gap-3 mb-4">
+                  <h2 className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--foreground)]">
                     {meta.label}
                   </h2>
                   <span className="text-xs text-[var(--foreground-muted)] tabular-nums">
                     {grouped[s].length}
                   </span>
-                  <span className="text-xs text-[var(--foreground-soft)]">
+                  <span className="text-xs text-[var(--foreground-soft)] hidden sm:inline">
                     {meta.hint}
                   </span>
                 </div>
-                <div className="grid grid-cols-6 sm:grid-cols-10 md:grid-cols-12 gap-2">
+                {/* The meadow: each character is a plant tile. */}
+                <div className="grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 sm:gap-3">
                   {grouped[s].map((h) => {
                     const c = getChar(h);
                     return (
                       <Link
                         key={h}
                         href={`/hanzi/${encodeURIComponent(h)}`}
-                        className="aspect-square flex flex-col items-center justify-center rounded-[10px] border border-[var(--border)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)] transition-colors"
+                        className="group flex flex-col items-center rounded-[12px] p-2 hover:bg-[var(--surface-2)] transition-colors"
                         title={c ? `${h} · ${c.meaningPrimary}` : h}
                       >
-                        <span className="hanzi text-2xl leading-none">{h}</span>
+                        <div className="bg-gradient-to-b from-[#f3f6ee] to-[#e7ecdc] rounded-[10px] w-full aspect-square flex items-end justify-center pb-1 overflow-hidden border border-[color:rgba(91,117,96,0.18)]">
+                          <Plant state={s} size={64} className="-mb-0.5" />
+                        </div>
+                        <span className="hanzi text-lg leading-none mt-2 text-[var(--ink)]">
+                          {h}
+                        </span>
                         {c?.pinyin && (
-                          <span className="text-[10px] text-[var(--foreground-soft)] mt-1 tracking-tight">
+                          <span className="text-[10px] text-[var(--foreground-soft)] mt-0.5 tracking-tight">
                             {c.pinyin}
                           </span>
                         )}

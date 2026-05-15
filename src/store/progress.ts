@@ -31,17 +31,23 @@ export interface DailyEntry {
   total: number;
 }
 
-interface State {
+/** Wire shape exchanged with /api/progress. */
+export interface ProgressSnapshot {
   chars: Record<string, CharProgress>;
   completedLessons: string[];
   daily: DailyEntry[];
   streak: number;
   streakUpdated: string | null;
+}
 
+interface State extends ProgressSnapshot {
   recordOutcome: (hanzi: string, outcome: Outcome) => void;
   toggleFavorite: (hanzi: string) => void;
   completeLesson: (lessonId: string) => void;
   reset: () => void;
+  /** Replace the entire state with the merged snapshot returned by the
+   *  server. Bypasses sync flags so this won't ping-pong. */
+  applyRemoteSnapshot: (snap: ProgressSnapshot) => void;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -141,8 +147,19 @@ export const useProgress = create<State>()(
       toggleFavorite: (hanzi) =>
         set((s) => {
           const cur = s.chars[hanzi] ?? init(hanzi);
+          // Update lastSeen so cross-device sync (last-write-wins on
+          // lastSeen) treats this as the most recent edit. Otherwise an
+          // older review on another device would silently override the
+          // star.
           return {
-            chars: { ...s.chars, [hanzi]: { ...cur, favorite: !cur.favorite } },
+            chars: {
+              ...s.chars,
+              [hanzi]: {
+                ...cur,
+                favorite: !cur.favorite,
+                lastSeen: Date.now(),
+              },
+            },
           };
         }),
 
@@ -160,6 +177,15 @@ export const useProgress = create<State>()(
           daily: [],
           streak: 0,
           streakUpdated: null,
+        }),
+
+      applyRemoteSnapshot: (snap) =>
+        set({
+          chars: snap.chars,
+          completedLessons: snap.completedLessons,
+          daily: snap.daily,
+          streak: snap.streak,
+          streakUpdated: snap.streakUpdated,
         }),
     }),
     { name: "minzi-progress-v1" }
