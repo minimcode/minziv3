@@ -285,26 +285,55 @@ export function SwipeStack({ queue, index, onCommit }: Props) {
               : "Иероглиф. Нажмите чтобы раскрыть. Свайп вправо — помню, влево — позже."
           }`}
         >
-          {/* Right glow — jade ink diffusion */}
+          {/* Right glow — jade ink diffusion. Sits BEHIND the card
+              face so the white card surface tints toward jade as the
+              user drags right. No mix-blend-mode — iOS Safari renders
+              it inconsistently. We use a plain colored gradient with
+              opacity tracking. */}
           <motion.div
             aria-hidden
-            className="absolute -inset-3 rounded-[28px] pointer-events-none"
+            className="absolute -inset-4 rounded-[32px] pointer-events-none"
             style={{
               opacity: rightGlow,
               background:
-                "radial-gradient(60% 60% at 70% 50%, rgba(46,125,79,0.42), transparent 75%)",
-              mixBlendMode: "multiply",
+                "radial-gradient(65% 70% at 75% 50%, rgba(46,125,79,0.55), rgba(46,125,79,0.18) 55%, transparent 80%)",
+              filter: "blur(2px)",
+              zIndex: 0,
             }}
           />
           {/* Left wash — muted terracotta paper-brush */}
           <motion.div
             aria-hidden
-            className="absolute -inset-3 rounded-[28px] pointer-events-none"
+            className="absolute -inset-4 rounded-[32px] pointer-events-none"
             style={{
               opacity: leftGlow,
               background:
-                "radial-gradient(60% 60% at 30% 50%, rgba(196,100,78,0.32), transparent 75%)",
-              mixBlendMode: "multiply",
+                "radial-gradient(65% 70% at 25% 50%, rgba(196,100,78,0.45), rgba(196,100,78,0.14) 55%, transparent 80%)",
+              filter: "blur(2px)",
+              zIndex: 0,
+            }}
+          />
+          {/* Inner ring tint — a softer accent painted ON the card itself,
+              so even on devices that flatten the outer glow there's still
+              a visible cue. */}
+          <motion.div
+            aria-hidden
+            className="absolute inset-0 rounded-2xl pointer-events-none"
+            style={{
+              opacity: rightGlow,
+              boxShadow:
+                "inset 0 0 60px 6px rgba(46,125,79,0.35)",
+              zIndex: 3,
+            }}
+          />
+          <motion.div
+            aria-hidden
+            className="absolute inset-0 rounded-2xl pointer-events-none"
+            style={{
+              opacity: leftGlow,
+              boxShadow:
+                "inset 0 0 60px 6px rgba(196,100,78,0.28)",
+              zIndex: 3,
             }}
           />
           <CardFace char={top} revealed={revealed} />
@@ -343,32 +372,25 @@ function CardFace({
   return (
     <div
       tabIndex={tabIndex}
-      className={`h-full w-full rounded-2xl border border-[var(--border)] bg-white shadow-sm overflow-hidden flex flex-col ${
+      className={`relative h-full w-full rounded-2xl border border-[var(--border)] bg-white shadow-sm overflow-hidden ${
         dim ? "scale-[0.96] opacity-70" : ""
       }`}
       style={dim ? { transformOrigin: "center top" } : undefined}
     >
-      {/* Hanzi area with 田字格 grid */}
-      <div className="relative flex-1 flex items-center justify-center min-h-[220px]">
-        <svg
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          viewBox="0 0 220 220"
-          preserveAspectRatio="none"
-          aria-hidden
-        >
-          <line x1="8" y1="110" x2="212" y2="110" stroke="#a1a1aa" strokeWidth="1" strokeDasharray="6 4" opacity="0.35" />
-          <line x1="110" y1="8" x2="110" y2="212" stroke="#a1a1aa" strokeWidth="1" strokeDasharray="6 4" opacity="0.35" />
-          <line x1="8" y1="8" x2="212" y2="212" stroke="#a1a1aa" strokeWidth="0.8" strokeDasharray="6 4" opacity="0.2" />
-          <line x1="212" y1="8" x2="8" y2="212" stroke="#a1a1aa" strokeWidth="0.8" strokeDasharray="6 4" opacity="0.2" />
-        </svg>
-        <span className="hanzi text-[130px] sm:text-[140px] leading-none select-none">
+      {/* Hanzi — absolute-centered in the full card surface so the
+          reveal panel (overlay below) doesn't push it visually off-
+          centre when collapsed. */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="hanzi text-[140px] sm:text-[160px] leading-none select-none text-[var(--ink)]">
           {char.hanzi}
         </span>
       </div>
 
-      {/* Reveal layer — pinyin + meaning. Hidden until tap/Space. */}
+      {/* Reveal layer — pinyin + meaning. Absolute-positioned at the
+          bottom so it never shifts the hanzi above. Fades + un-blurs
+          on tap. */}
       <div
-        className="px-5 pb-5 pt-3 border-t border-[var(--border)] transition-[opacity,filter] duration-200"
+        className="absolute inset-x-0 bottom-0 px-5 pb-5 pt-3 transition-[opacity,filter] duration-200 bg-white/85 backdrop-blur-sm border-t border-[var(--border)]"
         style={{
           opacity: revealed ? 1 : 0,
           filter: revealed ? "blur(0)" : "blur(6px)",
@@ -400,10 +422,10 @@ function CardFace({
         </p>
       </div>
 
-      {/* Quiet hint when unrevealed — under the hanzi but doesn't draw
-          attention. */}
+      {/* Quiet hint when unrevealed. Also absolute-positioned at the
+          bottom so it doesn't shift the hanzi. */}
       {!revealed && !dim && (
-        <div className="px-5 pb-5 pt-3 border-t border-[var(--border)]">
+        <div className="absolute inset-x-0 bottom-0 px-5 pb-4 pt-3">
           <p className="text-xs text-center text-[var(--foreground-soft)] tracking-wide select-none">
             нажмите чтобы раскрыть
           </p>

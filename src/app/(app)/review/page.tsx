@@ -284,13 +284,20 @@ function RecognitionCard({
   return (
     <div className="flex flex-col items-center gap-6 float-up">
       <p className="text-sm text-[var(--foreground-muted)]">Выберите значение иероглифа</p>
-      <div className="flex items-center gap-3">
-        <span className="hanzi text-7xl leading-none">{char.hanzi}</span>
-        <button onClick={() => speak(char.hanzi)} className="btn btn-ghost h-9 w-9 p-0">
+      {/* Hanzi gets its own row so it sits truly centred. The speak
+          button sits on its own line below — still tappable, but it
+          no longer shifts the character off-axis. */}
+      <div className="flex flex-col items-center gap-2">
+        <span className="hanzi text-7xl leading-none block text-center">{char.hanzi}</span>
+        <button
+          onClick={() => speak(char.hanzi)}
+          className="btn btn-ghost h-9 w-9 p-0"
+          aria-label="Произнести"
+        >
           <Volume2 size={16} />
         </button>
       </div>
-      <span className="pinyin text-lg text-[var(--foreground-muted)]">{char.pinyin}</span>
+      <span className="pinyin text-lg text-[var(--foreground-muted)] text-center">{char.pinyin}</span>
       <div className="grid grid-cols-2 gap-3 w-full max-w-md">
         {options.map((opt) => {
           const isCorrect = opt === correctAnswer;
