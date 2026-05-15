@@ -56,11 +56,46 @@ function dbRowToCharProgress(r: {
   };
 }
 
+/** Empty server snapshot — returned when the database isn't yet in sync
+ *  with the schema (e.g. a freshly added column on `UserProfile` whose
+ *  migration hasn't been deployed yet). Without this trap the entire
+ *  /api/progress endpoint 500s for every authenticated user until the
+ *  operator runs `prisma migrate deploy`. With it, sync degrades to a
+ *  no-op until the migration lands. */
+const EMPTY_SNAPSHOT: SnapshotPayload = {
+  chars: {},
+  completedLessons: [],
+  daily: [],
+  streak: 0,
+  streakUpdated: null,
+};
+
+function isSchemaDriftError(e: unknown): boolean {
+  if (typeof e !== "object" || e === null) return false;
+  const code = (e as { code?: unknown }).code;
+  // P2021 = table not found, P2022 = column not found.
+  return code === "P2021" || code === "P2022";
+}
+
 async function readSnapshot(userId: string): Promise<SnapshotPayload> {
-  const [states, profile] = await Promise.all([
-    prisma.characterState.findMany({ where: { userId } }),
-    prisma.userProfile.findUnique({ where: { userId } }),
-  ]);
+  let states: Awaited<ReturnType<typeof prisma.characterState.findMany>>;
+  let profile: Awaited<ReturnType<typeof prisma.userProfile.findUnique>>;
+  try {
+    [states, profile] = await Promise.all([
+      prisma.characterState.findMany({ where: { userId } }),
+      prisma.userProfile.findUnique({ where: { userId } }),
+    ]);
+  } catch (e) {
+    if (isSchemaDriftError(e)) {
+      console.warn(
+        "[api/progress] Schema drift — returning empty snapshot. " +
+          "Run `prisma migrate deploy`.",
+        e,
+      );
+      return EMPTY_SNAPSHOT;
+    }
+    throw e;
+  }
   const chars: Record<string, CharProgress> = {};
   for (const s of states) chars[s.hanzi] = dbRowToCharProgress(s);
   let completedLessons: string[] = [];
@@ -176,8 +211,12 @@ export async function POST(req: Request) {
         : server.streakUpdated
       : (body.streakUpdated ?? server.streakUpdated);
 
-  // Persist. Use transaction so server snapshot stays consistent.
-  await prisma.$transaction(async (tx) => {
+  // Persist. Use transaction so server snapshot stays consistent. If
+  // the schema is mid-migration, swallow the drift error and return the
+  // merged snapshot anyway — the client already has the data locally,
+  // so the next POST will retry once migrations are applied.
+  try {
+    await prisma.$transaction(async (tx) => {
     // CharacterState — upsert each merged hanzi. Only writes if the
     // merged value differs from what's in `server` to keep writes small.
     for (const [hanzi, c] of Object.entries(mergedChars)) {
@@ -244,7 +283,18 @@ export async function POST(req: Request) {
         streakUpdated: dateStrToDate(mergedStreakUpdated),
       },
     });
-  });
+    });
+  } catch (e) {
+    if (isSchemaDriftError(e)) {
+      console.warn(
+        "[api/progress] Schema drift on write — skipping persist. " +
+          "Run `prisma migrate deploy`.",
+        e,
+      );
+    } else {
+      throw e;
+    }
+  }
 
   return Response.json({
     chars: mergedChars,
