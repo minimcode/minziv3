@@ -10,11 +10,12 @@ import { Card } from "@/components/ui/Card";
 import { Panda } from "@/components/ui/Panda";
 import { WritingQuiz } from "@/components/learn/WritingQuiz";
 import { StrokeAnimation } from "@/components/learn/StrokeAnimation";
+import { SwipeStack } from "@/components/learn/SwipeStack";
 import {
   Volume2, RotateCcw, Eye, ChevronRight, ChevronDown,
   BookOpen, PenTool, Brain, Zap, Star,
   ArrowRight, Clock, SkipForward,
-  ThumbsUp, ThumbsDown, HelpCircle, Lightbulb,
+  HelpCircle, Lightbulb,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -255,75 +256,6 @@ function PhaseProgress({ phase, phases }: { phase: SessionPhase; phases: Session
           )}
         </div>
       ))}
-    </div>
-  );
-}
-
-/* ─── Warmup Card ───────────────────────────────────────────────────── */
-
-function WarmupCard({
-  char,
-  onKnow,
-  onForgot,
-}: {
-  char: CharRecord;
-  onKnow: () => void;
-  onForgot: () => void;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-6 float-up w-full max-w-md mx-auto">
-      <p className="text-sm text-[var(--foreground-muted)] tracking-wide">Знаете этот иероглиф?</p>
-
-      {/* Character card with cross grid background */}
-      <div className="relative w-[220px] h-[220px] rounded-2xl border border-[var(--border)] bg-white shadow-sm overflow-hidden">
-        {/* Cross grid lines (田字格 style) */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 220 220">
-          {/* Horizontal center line */}
-          <line x1="8" y1="110" x2="212" y2="110" stroke="#a1a1aa" strokeWidth="1" strokeDasharray="6 4" opacity="0.4" />
-          {/* Vertical center line */}
-          <line x1="110" y1="8" x2="110" y2="212" stroke="#a1a1aa" strokeWidth="1" strokeDasharray="6 4" opacity="0.4" />
-          {/* Diagonal lines (X pattern) */}
-          <line x1="8" y1="8" x2="212" y2="212" stroke="#a1a1aa" strokeWidth="0.8" strokeDasharray="6 4" opacity="0.25" />
-          <line x1="212" y1="8" x2="8" y2="212" stroke="#a1a1aa" strokeWidth="0.8" strokeDasharray="6 4" opacity="0.25" />
-        </svg>
-        {/* Character */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="hanzi text-[120px] leading-none select-none">
-            {char.hanzi}
-          </span>
-        </div>
-      </div>
-
-      {/* Pinyin + audio */}
-      <div className="flex items-center gap-2">
-        <span className="pinyin text-lg text-[var(--foreground-muted)]">{char.pinyin}</span>
-        <button onClick={() => speak(char.hanzi)} className="btn btn-ghost h-8 w-8 p-0 rounded-full">
-          <Volume2 size={14} className="text-[var(--foreground-soft)]" />
-        </button>
-      </div>
-
-      {/* Know / Forgot buttons */}
-      <div className="flex gap-4 w-full">
-        <button
-          onClick={onForgot}
-          className="flex-1 rounded-2xl border border-[var(--red)]/15 bg-[var(--red-soft)] px-5 py-5 flex flex-col items-center gap-2.5 hover:shadow-md hover:border-[var(--red)]/30 active:scale-[0.97] transition-all"
-        >
-          <ThumbsDown size={28} className="text-[var(--red)]" />
-          <span className="font-semibold text-[var(--red-deep)] text-base">Не помню</span>
-        </button>
-        <button
-          onClick={onKnow}
-          className="flex-1 rounded-2xl border border-[var(--green)]/15 bg-[var(--green-soft)] px-5 py-5 flex flex-col items-center gap-2.5 hover:shadow-md hover:border-[var(--green)]/30 active:scale-[0.97] transition-all"
-        >
-          <ThumbsUp size={28} className="text-[var(--green)]" />
-          <span className="font-semibold text-[var(--green-deep)] text-base">Помню</span>
-        </button>
-      </div>
-
-      {/* Meaning hint */}
-      <p className="text-sm text-[var(--foreground-soft)]">
-        {meaningRu(char) || char.meaningPrimary}
-      </p>
     </div>
   );
 }
@@ -894,26 +826,37 @@ export default function ReviewPage() {
               <span className="text-sm font-medium">{PHASE_LABELS[phase]}</span>
               <span className="text-sm tabular-nums text-[var(--foreground-muted)]">{queueIdx + 1} / {queue.length}</span>
               <div className="flex-1" />
-              <button
-                onClick={advanceInPhase}
-                className="btn btn-ghost text-sm py-1.5 px-3 flex items-center gap-1"
-              >
-                Далее <ChevronRight size={14} />
-              </button>
+              {phase !== "warmup" && (
+                <button
+                  onClick={advanceInPhase}
+                  className="btn btn-ghost text-sm py-1.5 px-3 flex items-center gap-1"
+                >
+                  Далее <ChevronRight size={14} />
+                </button>
+              )}
             </div>
 
-            {/* ─── WARMUP PHASE ─── */}
+            {/* ─── WARMUP PHASE ─── *
+                Tinder-like swipe stack. The card is the queue's current
+                hanzi; pinyin/meaning are hidden until the user taps to
+                reveal. Swipe right → "remember" → SRS forward. Swipe
+                left → "forget" → enqueued into weakThisSession so later
+                phases re-show it. */}
             {phase === "warmup" && (
-              <WarmupCard
-                char={currentChar}
-                onKnow={() => {
-                  setSessionStats((s) => ({ ...s, recognized: s.recognized + 1 }));
-                  advanceInPhase();
-                }}
-                onForgot={() => {
-                  setWeakThisSession((prev) =>
-                    prev.includes(currentChar.hanzi) ? prev : [...prev, currentChar.hanzi]
-                  );
+              <SwipeStack
+                queue={queue}
+                index={queueIdx}
+                onCommit={(hanzi, outcome) => {
+                  if (outcome === "remember") {
+                    setSessionStats((s) => ({
+                      ...s,
+                      recognized: s.recognized + 1,
+                    }));
+                  } else {
+                    setWeakThisSession((prev) =>
+                      prev.includes(hanzi) ? prev : [...prev, hanzi],
+                    );
+                  }
                   advanceInPhase();
                 }}
               />
