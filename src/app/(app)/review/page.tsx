@@ -11,7 +11,7 @@ import { FAVORITES_COLLECTION_ID } from "@/components/collections/collectionCove
 import { useViewportWidth } from "@/lib/useViewport";
 import { useMounted } from "@/lib/useMounted";
 import { getChar, meaningRu, meaningShort, ALL_CHARACTERS, type CharRecord } from "@/lib/characters";
-import { memoryStateFor, MEMORY_STATES } from "@/lib/memoryState";
+import { memoryStateFor, MEMORY_STATES, tallyMemoryStates } from "@/lib/memoryState";
 import { confusionGroupFor } from "@/lib/confusion";
 import { patternsFor, buildImageQuiz, imageFor } from "@/lib/sentences";
 import { Card } from "@/components/ui/Card";
@@ -23,9 +23,10 @@ import { SentenceBuilder } from "@/components/learn/SentenceBuilder";
 import { ImageMatch } from "@/components/learn/ImageMatch";
 import {
   Volume2, RotateCcw, Eye, ChevronRight, ChevronDown,
-  BookOpen, PenTool, Brain, Zap, Star, Layers,
-  ArrowRight, Clock, SkipForward,
-  HelpCircle, Lightbulb, Sparkles,
+  BookOpen, PenTool, Brain, Star,
+  ArrowRight, Clock, SkipForward, Settings,
+  HelpCircle, Lightbulb,
+  Sprout, TreePine, Trees, Leaf, Paintbrush,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -130,6 +131,104 @@ const SENTENCE_DB: { template: string; answer: string; meaning: string }[] = [
   { template: "___想学习", answer: "我", meaning: "Я хочу учиться" },
   { template: "今天天气___好", answer: "很", meaning: "Сегодня погода очень хорошая" },
 ];
+
+/* ─── Memory ritual UI primitives ───────────────────────────────────── */
+
+/**
+ * Five-step dot strip used under each memory-state column. Filled dots
+ * read jade (or amber for the "Forgetting" state) and represent how much
+ * weight that state carries. Dots are decorative — never the only label.
+ */
+function ProgressDots({
+  active, total = 5, tone = "jade",
+}: { active: number; total?: number; tone?: "jade" | "amber" | "ink" }) {
+  const fillCls =
+    tone === "amber"
+      ? "bg-[#c08245]"
+      : tone === "ink"
+      ? "bg-[var(--ink)]"
+      : "bg-[var(--green)]";
+  return (
+    <div className="flex items-center gap-1.5" aria-hidden>
+      {Array.from({ length: total }).map((_, i) => (
+        <span
+          key={i}
+          className={cn(
+            "w-1.5 h-1.5 rounded-full",
+            i < active ? fillCls : "bg-[var(--border)]",
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * SRS interval timeline: a horizontal axis with 4 nodes (1 day, 3 days,
+ * week, month). The first node (next due) is filled jade. The hairline
+ * connecting them is a single calm divider — same line you'd see in a
+ * museum exhibit caption.
+ */
+function SrsTimeline() {
+  const nodes = [
+    { label: "1 день",  active: true },
+    { label: "3 дня",   active: false },
+    { label: "неделя",  active: false },
+    { label: "месяц",   active: false },
+  ];
+  return (
+    <div className="relative">
+      <div
+        className="absolute left-3 right-3 top-2 h-px"
+        style={{
+          background:
+            "linear-gradient(to right, transparent, rgba(46,125,79,0.4) 8%, rgba(46,125,79,0.18) 50%, rgba(46,125,79,0.12) 92%, transparent)",
+        }}
+      />
+      <ul className="relative grid grid-cols-4 gap-0">
+        {nodes.map((n) => (
+          <li key={n.label} className="flex flex-col items-center gap-1.5">
+            <span
+              className={cn(
+                "w-[10px] h-[10px] rounded-full",
+                n.active
+                  ? "bg-[var(--green)] ring-4 ring-[color:rgba(46,125,79,0.10)]"
+                  : "bg-[var(--background)] border border-[var(--border-strong)]",
+              )}
+            />
+            <span className="text-[11px] text-[var(--foreground-muted)] leading-none">
+              {n.label}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Calligraphy seal — a tiny square ink stamp rendered in muted vermilion.
+ * Used as the brand mark in the hero, below the bamboo illustration.
+ */
+function SealMark({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center justify-center w-7 h-7 rounded-[3px] text-[10px] font-medium tracking-widest",
+        className,
+      )}
+      style={{
+        background: "rgba(170, 50, 40, 0.85)",
+        color: "rgba(255,247,235,0.95)",
+        fontFamily: 'var(--font-hanzi)',
+        letterSpacing: "0.05em",
+      }}
+      aria-hidden
+    >
+      静
+    </span>
+  );
+}
 
 /* ─── Heatmap ───────────────────────────────────────────────────────── */
 
@@ -746,6 +845,28 @@ function ReviewPageInner() {
     }));
   }, [daily]);
 
+  /* ─── Idle dashboard data (hoisted) ──────────────────────────────────
+     These useMemos power the redesigned dashboard hero / cards. They
+     must live above the conditional returns to satisfy the
+     rules-of-hooks; the dashboard render itself is far below. */
+  const memTally = useMemo(() => tallyMemoryStates(chars), [chars]);
+  const attentionHanzi = useMemo(() => {
+    return Object.values(chars)
+      .filter(
+        (c) =>
+          c.status === "weak" ||
+          c.lapses >= 2 ||
+          (c.attempts >= 3 && c.correct / c.attempts < 0.6),
+      )
+      .sort((a, b) => b.lapses - a.lapses || a.due - b.due)
+      .slice(0, 3)
+      .map((c) => c.hanzi);
+  }, [chars]);
+  const writingHanzi = useMemo(
+    () => dueChars(chars).slice(0, 3).map((c) => c.hanzi),
+    [chars],
+  );
+
   /* Current review character */
   const currentHanzi = queue[queueIdx] ?? null;
   const currentChar = currentHanzi ? getChar(currentHanzi) : null;
@@ -1284,295 +1405,513 @@ function ReviewPageInner() {
      DASHBOARD (idle phase)
      ═══════════════════════════════════════════════════════════════════════ */
 
+  /* ─── Idle dashboard ─────────────────────────────────────────────────
+   *  Recast (May 2026) from the dashboard / KPI feel into a calm daily
+   *  ritual: hero → single primary CTA → memory states as organic pills
+   *  → two side-by-side intent cards → atmospheric collections shelf →
+   *  short due-row → SRS timeline. Nothing about review logic, SRS, or
+   *  data shape changes; we only reshape the UI layer.
+   */
+
+  /* Writing batch — same cap (15) as the old write-mode card, but we
+     surface only the first three glyphs as a brush-stroke preview. */
+  const writingCount = Math.min(dueCnt, 15);
+
+  /* The hero number: «X знаков ждут внимания». Falls back to upcoming
+     count when the queue is empty so the page still has a real subject. */
+  const heroCount = dueCnt > 0 ? dueCnt : upcoming.count;
+  const heroIsDue = dueCnt > 0;
+
+  /* Memory-state columns (matches the §4 vocabulary). We collapse Seen
+     into Learning here because «Знакомлюсь» and «Учу» feel like the same
+     bucket to a returning user (both are "не отпустила память ещё"). */
+  const memoryCols: Array<{
+    key: string;
+    label: string;
+    count: number;
+    icon: React.ReactNode;
+    tone: "jade" | "amber" | "ink";
+    chipBg: string;
+    iconCls: string;
+  }> = [
+    {
+      key: "new",
+      label: "Новые",
+      count: memTally.seen + memTally.learning,
+      icon: <Sprout size={20} strokeWidth={1.5} />,
+      tone: "jade",
+      chipBg: "bg-[color:rgba(46,125,79,0.10)]",
+      iconCls: "text-[var(--green)]",
+    },
+    {
+      key: "strengthening",
+      label: "Укрепляются",
+      count: memTally.young,
+      icon: <TreePine size={20} strokeWidth={1.5} />,
+      tone: "jade",
+      chipBg: "bg-[color:rgba(91,138,79,0.12)]",
+      iconCls: "text-[var(--bamboo)]",
+    },
+    {
+      key: "mature",
+      label: "Зрелые",
+      count: memTally.mature + memTally.rooted,
+      icon: <Trees size={20} strokeWidth={1.5} />,
+      tone: "ink",
+      chipBg: "bg-[color:rgba(26,40,30,0.08)]",
+      iconCls: "text-[#2f5340]",
+    },
+    {
+      key: "forgetting",
+      label: "Начинают забываться",
+      count: weakCnt,
+      icon: <Leaf size={20} strokeWidth={1.5} />,
+      tone: "amber",
+      chipBg: "bg-[color:rgba(192,130,69,0.14)]",
+      iconCls: "text-[#a86a30]",
+    },
+  ];
+
+  /* Map a count to a 5-point dot scale relative to the largest column,
+     so the dot strip is a real visual ranking and not just decoration. */
+  const memMax = Math.max(1, ...memoryCols.map((c) => c.count));
+  const dotsFor = (n: number) =>
+    n === 0 ? 0 : Math.max(1, Math.round((n / memMax) * 5));
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-8 py-6">
-      <h1 className="text-3xl font-display font-semibold mb-2 text-[var(--ink)]">Повторение</h1>
-      <p className="text-sm text-[var(--foreground-muted)] mb-1">Сегодняшняя цель</p>
-      <div className="flex items-end gap-3 mb-2">
-        <span className="text-4xl font-bold text-[var(--green)] leading-none tabular-nums">
-          {todayReviewed}
-        </span>
-        <span className="text-base text-[var(--foreground-muted)] pb-0.5">/ 30 повторений</span>
-      </div>
-      <div className="flex items-center gap-4 mb-8">
-        <div className="flex-1 h-2.5 rounded-full bg-[var(--surface-3)] overflow-hidden max-w-lg">
-          <div
-            className="h-full rounded-full bg-[var(--green)] transition-[width] duration-500"
-            style={{ width: `${Math.min(100, (todayReviewed / 30) * 100)}%` }}
-          />
-        </div>
-      </div>
+    <main className="bg-rice min-h-screen">
+      <div className="max-w-5xl mx-auto px-5 sm:px-8 pt-7 sm:pt-12 pb-24">
 
-      {/* Session-size selector — §3 sizes from §9: Quick (≈3 min),
-          Default (≈18–22 min), Deep (≈30–40 min). The Quick option is
-          always available because the daily floor is what keeps the
-          streak alive (§13 «1 minute counts»). */}
-      <div className="mb-6 flex flex-wrap items-center gap-2">
-        <span className="text-[11px] uppercase tracking-[0.2em] text-[var(--foreground-soft)] mr-1">
-          Размер сессии
-        </span>
-        {([
-          { id: "quick" as const,   label: "Коротко",   sub: "≈3 мин"  },
-          { id: "default" as const, label: "Обычно",   sub: "≈18 мин" },
-          { id: "deep" as const,    label: "Глубоко",   sub: "≈30 мин" },
-        ]).map((o) => (
-          <button
-            key={o.id}
-            onClick={() => setSessionSize(o.id)}
-            className={cn(
-              "rounded-full border px-3 py-1.5 text-sm flex items-baseline gap-1.5 transition-colors",
-              sessionSize === o.id
-                ? "bg-[var(--ink)] text-[var(--background)] border-[var(--ink)]"
-                : "bg-transparent text-[var(--foreground-muted)] border-[var(--border-strong)] hover:text-[var(--foreground)]"
-            )}
+        {/* ── HERO ───────────────────────────────────────────────────── */}
+        <section className="relative mb-8 sm:mb-10">
+          <Link
+            href="/profile"
+            aria-label="Настройки профиля"
+            className="absolute top-0 right-0 w-10 h-10 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center shadow-sm hover:shadow-md transition-shadow"
           >
-            <span>{o.label}</span>
-            <span className="text-[10px] opacity-70 tabular-nums">{o.sub}</span>
-          </button>
-        ))}
-      </div>
+            <Settings size={15} className="text-[var(--foreground-muted)]" />
+          </Link>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
-        <div className="space-y-6">
-          {/* Session cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <button
-              onClick={() => startSession("all", sessionSize)}
-              disabled={dueCnt === 0}
-              className="card p-6 flex flex-col items-center gap-3 hover:shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed text-left"
-            >
-              <div className="w-12 h-12 rounded-full bg-[var(--green-soft)] flex items-center justify-center">
-                <BookOpen size={22} className="text-[var(--green)]" />
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-[var(--green)]">{dueCnt}</div>
-                <div className="text-sm text-[var(--foreground-muted)]">к повторению</div>
-              </div>
-              {dueCnt > 0 && (
-                <span className="btn btn-success text-xs py-1.5 px-4">Начать</span>
-              )}
-            </button>
-
-            <button
-              onClick={() => startSession("weak", sessionSize)}
-              disabled={weakCnt === 0}
-              className="card p-6 flex flex-col items-center gap-3 hover:shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed text-left"
-            >
-              <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center">
-                <Zap size={22} className="text-amber-500" />
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-amber-500">{weakCnt}</div>
-                <div className="text-sm text-[var(--foreground-muted)]">слабых</div>
-              </div>
-              {weakCnt > 0 && (
-                <span className="btn btn-secondary text-xs py-1.5 px-4">Тренировать</span>
-              )}
-            </button>
-
-            <button
-              onClick={() => startSession("writing", sessionSize)}
-              disabled={dueCnt === 0}
-              className="card p-6 flex flex-col items-center gap-3 hover:shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed text-left"
-            >
-              <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
-                <PenTool size={22} className="text-blue-500" />
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-blue-500">{Math.min(dueCnt, 15)}</div>
-                <div className="text-sm text-[var(--foreground-muted)]">письмо</div>
-              </div>
-              {dueCnt > 0 && (
-                <span className="btn btn-secondary text-xs py-1.5 px-4">Писать</span>
-              )}
-            </button>
-          </div>
-
-          {/* Collections — pick a curated shelf to review.
-              Hidden until the user has at least one collection. */}
-          {mounted && collections.length > 0 && (
-            <Card className="p-5 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Layers size={16} className="text-[var(--foreground-muted)]" />
-                  <h2 className="text-lg font-display font-medium">Повторить коллекцию</h2>
-                </div>
-                <Link
-                  href="/collections"
-                  className="text-xs text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
-                >
-                  Все
-                </Link>
-              </div>
-              <p className="text-xs text-[var(--foreground-muted)] mb-3">
-                Маленькая полка, к которой хочется вернуться. Только те иероглифы, что вы туда положили.
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_240px] gap-6 sm:gap-8 items-start">
+            <div className="min-w-0">
+              <h1 className="font-display text-[44px] sm:text-[56px] font-medium leading-[0.95] tracking-tight text-[var(--ink)]">
+                Повторение
+              </h1>
+              <p className="mt-3 text-[15px] leading-relaxed text-[var(--foreground-muted)] max-w-md">
+                Возвращайтесь к знакам, чтобы память
+                <br className="hidden sm:block" /> становилась прочнее.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {collections.slice(0, 4).map((col) => (
-                  <button
-                    key={col.id}
-                    type="button"
-                    onClick={() =>
-                      col.hanzi.length > 0
-                        ? startSession("collection", sessionSize, col.id)
-                        : null
-                    }
-                    disabled={col.hanzi.length === 0}
-                    className={cn(
-                      "card-soft p-3 flex items-center gap-3 text-left transition-all",
-                      col.hanzi.length === 0
-                        ? "opacity-60 cursor-not-allowed"
-                        : "hover:shadow-sm hover:-translate-y-0.5",
-                    )}
-                  >
-                    <div className="w-16 h-10 shrink-0 rounded-[10px] overflow-hidden">
-                      <CollectionCover coverId={col.coverId} collectionName={col.name} />
+
+              {hasAnyStudied && (
+                <div className="mt-7">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-[var(--foreground-soft)] mb-1">
+                    Сегодня
+                  </p>
+                  <div className="flex items-baseline gap-3">
+                    <span className="font-display text-[68px] leading-none tabular-nums text-[var(--green)] font-medium">
+                      {heroCount}
+                    </span>
+                    <span className="text-[14px] leading-tight text-[var(--foreground-muted)]">
+                      {pluralChars(heroCount)}
+                      <br />
+                      {heroIsDue ? "ждут внимания" : "вернутся позже"}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => startSession("all", sessionSize)}
+                disabled={dueCnt === 0}
+                className={cn(
+                  "mt-7 inline-flex items-center gap-2.5 rounded-full px-6 py-3.5 text-[15px] font-medium text-white",
+                  "bg-[var(--green)] hover:bg-[var(--green-deep)] transition-all duration-200",
+                  "shadow-[0_14px_30px_-12px_rgba(46,125,79,0.55),inset_0_1px_0_rgba(255,255,255,0.18)]",
+                  "hover:shadow-[0_18px_40px_-12px_rgba(46,125,79,0.7),inset_0_1px_0_rgba(255,255,255,0.18)]",
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                )}
+              >
+                <Paintbrush size={16} strokeWidth={1.75} />
+                <span>{dueCnt > 0 ? "Начать повторение" : "Пока пусто"}</span>
+                {dueCnt > 0 && <ChevronRight size={16} className="opacity-90" />}
+              </button>
+
+              {/* Session-size selector — tucked under the CTA as a calm
+                  secondary control so it doesn't compete for attention. */}
+              {dueCnt > 0 && (
+                <div className="mt-4 flex flex-wrap items-center gap-1.5">
+                  {([
+                    { id: "quick"   as const, label: "Коротко",  sub: "≈3 мин"  },
+                    { id: "default" as const, label: "Обычно",   sub: "≈18 мин" },
+                    { id: "deep"    as const, label: "Глубоко",  sub: "≈30 мин" },
+                  ]).map((o) => (
+                    <button
+                      key={o.id}
+                      onClick={() => setSessionSize(o.id)}
+                      className={cn(
+                        "rounded-full px-3 py-1 text-[12px] flex items-baseline gap-1.5 transition-colors",
+                        sessionSize === o.id
+                          ? "bg-[color:rgba(46,125,79,0.10)] text-[var(--green-deep)]"
+                          : "text-[var(--foreground-soft)] hover:text-[var(--foreground-muted)]",
+                      )}
+                    >
+                      <span>{o.label}</span>
+                      <span className="text-[10px] opacity-70 tabular-nums">{o.sub}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Hero ink illustration — bamboo + tea bowl + seal. Hidden
+                on narrow phones so the page doesn't feel cramped. */}
+            <div className="hidden sm:flex relative h-[260px] items-end justify-end">
+              <Image
+                src="/bg/bg_bamboo_branch.png"
+                alt=""
+                width={520}
+                height={520}
+                aria-hidden
+                className="absolute inset-0 w-full h-full object-contain object-right-bottom opacity-90 pointer-events-none select-none"
+                priority
+              />
+              <SealMark className="absolute bottom-3 right-3 shadow-sm" />
+            </div>
+          </div>
+        </section>
+
+        {/* ── MEMORY STATE PILLS ────────────────────────────────────── */}
+        {studiedCharSet.size > 0 && (
+          <Card className="mb-5 p-5 sm:p-6">
+            <div className="flex items-baseline justify-between mb-5">
+              <h2 className="font-display text-[19px] font-medium text-[var(--ink)]">
+                Состояние памяти
+              </h2>
+              <Link
+                href="/garden"
+                className="text-[13px] text-[var(--foreground-muted)] hover:text-[var(--foreground)] flex items-center gap-1"
+              >
+                Подробнее <ChevronRight size={12} />
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-5">
+              {memoryCols.map((col) => (
+                <div key={col.key} className="min-w-0">
+                  <div className="flex items-center gap-3 mb-2.5">
+                    <div
+                      className={cn(
+                        "w-11 h-11 rounded-full flex items-center justify-center shrink-0",
+                        col.chipBg,
+                      )}
+                    >
+                      <span className={col.iconCls}>{col.icon}</span>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium truncate">{col.name}</div>
-                      <div className="text-[11px] text-[var(--foreground-muted)] tabular-nums">
-                        {col.hanzi.length} {pluralChars(col.hanzi.length)}
+                    <div className="min-w-0">
+                      <div className="font-display text-[26px] leading-none tabular-nums text-[var(--ink)]">
+                        {col.count}
+                      </div>
+                      <div className="text-[11px] text-[var(--foreground-muted)] mt-1 leading-tight">
+                        {col.label}
                       </div>
                     </div>
-                    <ChevronRight
-                      size={14}
-                      className="text-[var(--foreground-soft)] shrink-0"
-                    />
-                  </button>
-                ))}
-              </div>
-            </Card>
-          )}
+                  </div>
+                  <ProgressDots active={dotsFor(col.count)} tone={col.tone} />
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
-          {/* Due characters preview grid */}
-          {dueCnt > 0 && (
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-display font-medium">Готово к повторению</h2>
-                <span className="text-sm text-[var(--foreground-muted)]">{dueCnt} {pluralChars(dueCnt)}</span>
+        {/* ── TWO-UP: REQUIRE ATTENTION + WRITING PRACTICE ─────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          {/* Требуют внимания */}
+          <button
+            type="button"
+            onClick={() => weakCnt > 0 && startSession("weak", sessionSize)}
+            disabled={weakCnt === 0}
+            className={cn(
+              "card text-left p-5 sm:p-6 transition-shadow",
+              "bg-[color:rgba(248,239,225,0.85)]",
+              weakCnt > 0 ? "hover:shadow-md" : "opacity-70 cursor-not-allowed",
+            )}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <h3 className="font-display text-[17px] font-medium text-[var(--ink)]">
+                  Требуют внимания
+                </h3>
+                {weakCnt > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[color:rgba(168,90,60,0.18)] text-[#7e3a20] text-[11px] font-medium tabular-nums">
+                    {weakCnt}
+                  </span>
+                )}
               </div>
-              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-                {dueChars(chars).slice(0, 24).map((cp) => {
+              <ChevronRight size={14} className="text-[var(--foreground-soft)]" />
+            </div>
+            <p className="text-[13px] text-[var(--foreground-muted)] mb-4">
+              {weakCnt > 0
+                ? "Эти знаки вы всё чаще забываете."
+                : "Пока ни один знак не просит внимания."}
+            </p>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {(attentionHanzi.length > 0
+                ? attentionHanzi
+                : ["—", "—", "—"]
+              ).map((h, i) => (
+                <div
+                  key={i}
+                  className="aspect-square rounded-[var(--radius-md)] border border-[color:rgba(168,90,60,0.20)] bg-[var(--surface)] flex items-center justify-center"
+                >
+                  <span className="hanzi text-[34px] leading-none text-[var(--ink)]">
+                    {h}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <span className="text-[13px] text-[#b85a3d] font-medium inline-flex items-center gap-1">
+              Смотреть все <ChevronRight size={12} />
+            </span>
+          </button>
+
+          {/* Практика письма */}
+          <button
+            type="button"
+            onClick={() => writingCount > 0 && startSession("writing", sessionSize)}
+            disabled={writingCount === 0}
+            className={cn(
+              "card text-left p-5 sm:p-6 transition-shadow relative overflow-hidden",
+              writingCount > 0 ? "hover:shadow-md" : "opacity-70 cursor-not-allowed",
+            )}
+          >
+            <Image
+              src="/panda/pen.png"
+              alt=""
+              width={160}
+              height={160}
+              aria-hidden
+              className="absolute -top-2 -right-2 w-[110px] h-auto opacity-[0.16] pointer-events-none select-none"
+            />
+            <div className="relative">
+              <h3 className="font-display text-[17px] font-medium text-[var(--ink)] mb-1">
+                Практика письма
+              </h3>
+              <p className="text-[13px] text-[var(--foreground-muted)] mb-4">
+                {writingCount} {pluralChars(writingCount)} для письма
+                <br />
+                по памяти
+              </p>
+              <div className="grid grid-cols-4 gap-2 mb-4">
+                {writingHanzi.map((h) => (
+                  <div
+                    key={h}
+                    className="aspect-square rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] flex items-center justify-center"
+                  >
+                    <span className="hanzi text-[28px] leading-none text-[var(--ink)]">
+                      {h}
+                    </span>
+                  </div>
+                ))}
+                {Array.from({ length: Math.max(0, 3 - writingHanzi.length) }).map((_, i) => (
+                  <div
+                    key={`pad-${i}`}
+                    className="aspect-square rounded-[var(--radius-md)] border border-dashed border-[var(--border)] bg-[var(--surface)]"
+                  />
+                ))}
+                <div className="aspect-square rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] flex items-center justify-center text-[var(--foreground-soft)] text-2xl leading-none">
+                  …
+                </div>
+              </div>
+              <span className="text-[13px] text-[var(--green)] font-medium inline-flex items-center gap-1">
+                Начать письмо <ChevronRight size={12} />
+              </span>
+            </div>
+          </button>
+        </div>
+
+        {/* ── COLLECTIONS — atmospheric shelf ───────────────────────── */}
+        {mounted && collections.length > 0 && (
+          <section className="mb-6">
+            <div className="flex items-baseline justify-between mb-3">
+              <h2 className="font-display text-[19px] font-medium text-[var(--ink)]">
+                Мои коллекции
+              </h2>
+              <Link
+                href="/collections"
+                className="text-[13px] text-[var(--foreground-muted)] hover:text-[var(--foreground)] inline-flex items-center gap-1"
+              >
+                Все коллекции <ChevronRight size={12} />
+              </Link>
+            </div>
+            <div className="-mx-5 sm:-mx-8 px-5 sm:px-8">
+              <ul className="flex gap-3 overflow-x-auto scroll-hide pb-2 -mb-2 snap-x snap-mandatory">
+                {collections.slice(0, 8).map((col) => {
+                  const empty = col.hanzi.length === 0;
+                  return (
+                    <li key={col.id} className="shrink-0 snap-start w-[150px] sm:w-[170px]">
+                      <button
+                        type="button"
+                        disabled={empty}
+                        onClick={() => !empty && startSession("collection", sessionSize, col.id)}
+                        className={cn(
+                          "group block w-full rounded-[18px] overflow-hidden bg-[var(--surface)] border border-[var(--border)] text-left transition-all",
+                          empty ? "opacity-50 cursor-not-allowed" : "hover:shadow-md hover:-translate-y-0.5",
+                        )}
+                      >
+                        <div className="relative aspect-[3/4] overflow-hidden">
+                          <CollectionCover
+                            coverId={col.coverId}
+                            collectionName={col.name}
+                            className="absolute inset-0 transition-transform duration-700 group-hover:scale-105"
+                          />
+                          <div
+                            aria-hidden
+                            className="absolute inset-0"
+                            style={{
+                              background:
+                                "linear-gradient(180deg, transparent 50%, rgba(30,28,22,0.55) 100%)",
+                            }}
+                          />
+                          {col.id === FAVORITES_COLLECTION_ID && (
+                            <span className="absolute top-2.5 left-2.5 w-7 h-7 rounded-full bg-[var(--surface)]/95 backdrop-blur flex items-center justify-center shadow-sm">
+                              <Star size={13} className="text-[#c0a063] fill-[#d4b577]" />
+                            </span>
+                          )}
+                          <div className="absolute inset-x-3 bottom-2.5 text-[var(--surface)]">
+                            <div className="font-display text-[15px] leading-tight truncate drop-shadow-sm">
+                              {col.name}
+                            </div>
+                            <div className="text-[11px] opacity-90 tabular-nums">
+                              {col.hanzi.length} {pluralChars(col.hanzi.length)}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </section>
+        )}
+
+        {/* ── READY TO REVIEW — short tactile row ───────────────────── */}
+        {dueCnt > 0 && (
+          <section className="mb-6">
+            <div className="flex items-baseline justify-between mb-3">
+              <h2 className="font-display text-[19px] font-medium text-[var(--ink)]">
+                Готовы к повторению
+              </h2>
+              <button
+                type="button"
+                onClick={() => startSession("all", sessionSize)}
+                className="text-[13px] text-[var(--foreground-muted)] hover:text-[var(--foreground)] inline-flex items-center gap-1"
+              >
+                Все {dueCnt} <ChevronRight size={12} />
+              </button>
+            </div>
+            <div className="-mx-5 sm:-mx-8 px-5 sm:px-8">
+              <ul className="flex gap-2 overflow-x-auto scroll-hide pb-1">
+                {dueChars(chars).slice(0, 7).map((cp) => {
                   const c = getChar(cp.hanzi);
                   if (!c) return null;
                   return (
-                    <div
+                    <li
                       key={cp.hanzi}
-                      className="card-soft p-2 flex flex-col items-center gap-1 hover:shadow-sm transition-shadow"
+                      className="shrink-0 w-[60px] h-[76px] rounded-[12px] border border-[var(--border)] bg-[var(--surface)] flex flex-col items-center justify-center gap-0.5"
                     >
-                      <span className="hanzi text-2xl">{c.hanzi}</span>
-                      <span className="text-[10px] text-[var(--foreground-muted)] truncate w-full text-center">
-                        {meaningShort(c)}
+                      <span className="hanzi text-[26px] leading-none text-[var(--ink)]">
+                        {c.hanzi}
                       </span>
-                    </div>
+                      <span className="pinyin text-[10px] text-[var(--foreground-muted)] truncate w-full text-center px-1">
+                        {c.pinyin}
+                      </span>
+                    </li>
                   );
                 })}
-              </div>
-              {dueCnt > 24 && (
-                <p className="text-center text-xs text-[var(--foreground-muted)] mt-3">
-                  и ещё {dueCnt - 24}...
-                </p>
-              )}
-            </Card>
-          )}
-
-          {dueCnt === 0 && (
-            <Card className="p-8 text-center">
-              <Panda mood="success" size={100} className="mx-auto mb-4" />
-              <h2 className="text-xl font-display font-medium mb-2">
-                Все повторения выполнены!
-              </h2>
-              <p className="text-[var(--foreground-muted)]">
-                {upcoming.count > 0 ? (
-                  <>
-                    {upcoming.count} {pluralChars(upcoming.count)} вернётся{" "}
-                    {formatRelativeIn(upcoming.nextDueMs)}.
-                  </>
-                ) : (
-                  <>Возвращайтесь позже или изучите новый урок.</>
+                {dueCnt > 7 && (
+                  <li className="shrink-0 w-[60px] h-[76px] rounded-[12px] border border-dashed border-[var(--border-strong)] bg-[var(--surface-2)] flex items-center justify-center">
+                    <span className="text-[13px] text-[var(--foreground-muted)] tabular-nums">
+                      +{dueCnt - 7}
+                    </span>
+                  </li>
                 )}
-              </p>
-              <Link href="/learn" className="btn btn-primary mt-4 inline-flex">
-                Продолжить обучение
-              </Link>
-            </Card>
-          )}
+              </ul>
+            </div>
+          </section>
+        )}
 
-          {/* Memory atlas — real distribution of characters across the
-              five memory states (§4). No fake percentages: every cell is
-              an actual count from the Zustand store. */}
-          {studiedCharSet.size > 0 && (() => {
-            const tally = { seen: 0, learning: 0, young: 0, mature: 0, rooted: 0 };
-            for (const p of Object.values(chars)) {
-              tally[memoryStateFor(p)] += 1;
-            }
-            const total = studiedCharSet.size;
-            const cells: Array<{ key: keyof typeof tally; label: string; tone: string }> = [
-              { key: "learning", label: "Учу", tone: "bg-[var(--red-soft)] text-[var(--red-deep)]" },
-              { key: "young", label: "Свежее", tone: "bg-[color:rgba(91,117,96,0.12)] text-[#3a5340]" },
-              { key: "mature", label: "Зрелое", tone: "bg-[var(--green-soft)] text-[var(--green-deep)]" },
-              { key: "rooted", label: "Укоренилось", tone: "bg-[color:rgba(26,24,20,0.08)] text-[var(--ink)]" },
-            ];
-            return (
-              <Card className="p-5 sm:p-6">
+        {/* ── EMPTY DUE — gentle resting state ─────────────────────── */}
+        {dueCnt === 0 && hasAnyStudied && (
+          <Card className="mb-6 p-7 text-center">
+            <Panda mood="success" size={80} className="mx-auto mb-3 opacity-90" />
+            <h2 className="font-display text-[20px] font-medium mb-1.5">
+              Все возвращения сделаны.
+            </h2>
+            <p className="text-[14px] text-[var(--foreground-muted)] max-w-sm mx-auto leading-relaxed">
+              {upcoming.count > 0 ? (
+                <>
+                  Знаки вернутся {formatRelativeIn(upcoming.nextDueMs)}. До тех пор
+                  память сама укладывает их глубже.
+                </>
+              ) : (
+                <>Тихий день. Загляните в сад или откройте новый урок.</>
+              )}
+            </p>
+            <div className="mt-4 flex items-center justify-center gap-2">
+              <Link
+                href="/learn"
+                className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] text-[var(--green-deep)] bg-[color:rgba(46,125,79,0.10)] hover:bg-[color:rgba(46,125,79,0.16)] transition-colors"
+              >
+                Новый урок <ChevronRight size={12} />
+              </Link>
+              <Link
+                href="/garden"
+                className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
+              >
+                В сад <ChevronRight size={12} />
+              </Link>
+            </div>
+          </Card>
+        )}
+
+        {/* ── NEXT REVIEW TIMELINE ──────────────────────────────────── */}
+        {upcoming.count > 0 && (
+          <Card className="p-5 sm:p-6 overflow-hidden relative">
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-5 sm:gap-6 items-center">
+              <div className="min-w-0">
                 <div className="flex items-start gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-[var(--green-soft)] flex items-center justify-center shrink-0">
-                    <Sparkles size={18} className="text-[var(--green-deep)]" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium">Карта вашей памяти</h3>
-                    <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
-                      {total} {pluralChars(total)} в работе — реальные состояния по интервалам.
+                  <span className="mt-0.5 w-9 h-9 rounded-full bg-[color:rgba(46,125,79,0.10)] flex items-center justify-center shrink-0">
+                    <Clock size={16} className="text-[var(--green)]" strokeWidth={1.75} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[12px] uppercase tracking-[0.15em] text-[var(--foreground-soft)] mb-1">
+                      Следующее возвращение
+                    </p>
+                    <p className="font-display text-[20px] leading-tight text-[var(--ink)]">
+                      {formatRelativeIn(upcoming.nextDueMs)}
                     </p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  {cells.map(({ key, label, tone }) => (
-                    <div
-                      key={key}
-                      className={cn("rounded-[var(--radius-md)] px-3 py-3 text-center", tone)}
-                    >
-                      <div className="text-2xl font-display font-medium tabular-nums leading-none">
-                        {tally[key]}
-                      </div>
-                      <div className="text-[11px] mt-1 opacity-80">{label}</div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
-            );
-          })()}
-
-          {/* SRS visibility — explain why some studied characters
-              haven't yet appeared in the review queue. Hidden when there
-              are none in the future. */}
-          {upcoming.count > 0 && (
-            <Card className="p-5 sm:p-6">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-full bg-[var(--surface-2)] flex items-center justify-center shrink-0">
-                  <Clock size={18} className="text-[var(--foreground-muted)]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium mb-1">
-                    Ближайшие повторения
-                  </h3>
-                  <p className="text-sm text-[var(--foreground-muted)]">
-                    Ещё {upcoming.count} {pluralChars(upcoming.count)} в очереди
-                    — следующий{" "}
-                    <span className="text-[var(--foreground)] font-medium">
-                      {formatRelativeIn(upcoming.nextDueMs)}
-                    </span>
-                    . Иероглифы возвращаются по интервалам: 1 день → 3 дня →
-                    неделя → месяц. Так память укрепляется без перегрузки.
-                  </p>
-                </div>
+                <SrsTimeline />
+                <p className="text-[12px] text-[var(--foreground-muted)] mt-3 leading-relaxed max-w-md">
+                  Так память укрепляется без перегрузки.
+                </p>
               </div>
-            </Card>
-          )}
-        </div>
-
-        {rightSidebar}
+              <div className="hidden sm:block relative h-[130px] -my-2">
+                <Image
+                  src="/bg/bg_mountain_sun.png"
+                  alt=""
+                  width={300}
+                  height={300}
+                  aria-hidden
+                  className="absolute inset-0 w-full h-full object-contain object-right opacity-70 pointer-events-none select-none"
+                />
+              </div>
+            </div>
+          </Card>
+        )}
       </div>
-    </div>
+    </main>
   );
 }
