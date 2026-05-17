@@ -12,7 +12,7 @@ const NAV: { href: string; label: string }[] = [
 export function Header() {
   return (
     <header className="sticky top-0 z-30 backdrop-blur-lg bg-[var(--background)]/70 border-b border-[var(--border)]/60">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-6">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10 h-14 flex items-center gap-6">
         <Link href="/" className="flex items-center gap-2.5 mr-2">
           <Image src="/icon.svg" alt="" width={32} height={32} />
           <div className="leading-tight">

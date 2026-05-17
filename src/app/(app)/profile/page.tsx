@@ -7,6 +7,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useProgress } from "@/store/progress";
 import { useMounted } from "@/lib/useMounted";
 import { Panda } from "@/components/ui/Panda";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import {
   Trash2,
   Award,
@@ -288,8 +289,14 @@ export default function ProfilePage() {
           </Link>
         </div>
 
-        <div className="mt-8 pt-6 border-t border-[var(--border)]">
-          <p className="text-xs text-[var(--foreground-soft)] mb-3">
+        <div className="mt-8 pt-6 border-t border-[var(--border)] flex flex-col items-center gap-4">
+          <div className="flex flex-col items-center gap-2">
+            <div className="text-[11px] uppercase tracking-wider text-[var(--foreground-soft)]">
+              Оформление
+            </div>
+            <ThemeToggle />
+          </div>
+          <p className="text-xs text-[var(--foreground-soft)] mt-2">
             Сейчас вы используете гостевой режим. Прогресс сохраняется только на этом устройстве.
           </p>
           <button
@@ -711,6 +718,19 @@ export default function ProfilePage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Appearance */}
+      <div className="bg-white rounded-2xl border border-[var(--border)] p-6 mb-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-sm font-medium text-[var(--foreground)]">Оформление</div>
+            <div className="text-xs text-[var(--foreground-muted)] mt-1">
+              Светлая &mdash; рисовая бумага. Тёмная &mdash; чёрная тушь.
+            </div>
+          </div>
+          <ThemeToggle />
+        </div>
       </div>
 
       {/* Account actions */}

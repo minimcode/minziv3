@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
+import { useThemeTokens } from "@/lib/useThemeTokens";
 import { Play, Pause, RotateCcw } from "lucide-react";
 
 interface Props {
@@ -33,6 +34,12 @@ export function StrokeAnimation({
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const t = useThemeTokens([
+    "--stroke-default",
+    "--stroke-outline",
+    "--stroke-active",
+  ]);
+
   useEffect(() => {
     let cancelled = false;
     const node = containerRef.current;
@@ -54,10 +61,10 @@ export function StrokeAnimation({
           // Single stroke colour — never auto-recolour radicals, that's
           // confusing without explanation. Selection-based highlighting
           // happens at the parent level via the <Graphemes /> component.
-          strokeColor: "#2a2c28",
-          radicalColor: "#2a2c28",
-          outlineColor: "#dad7cf",
-          drawingColor: "#c43a3a",
+          strokeColor: t["--stroke-default"] || "#2a2c28",
+          radicalColor: t["--stroke-default"] || "#2a2c28",
+          outlineColor: t["--stroke-outline"] || "#dad7cf",
+          drawingColor: t["--stroke-active"] || "#c43a3a",
           // Tells the writer to fetch from chanind/hanzi-writer-data CDN.
           charDataLoader(c, onComplete) {
             fetch(
@@ -101,7 +108,8 @@ export function StrokeAnimation({
     return () => {
       cancelled = true;
     };
-  }, [hanzi, size, autoplay, onReady]);
+    // Re-create when theme tokens flip so strokes match the substrate.
+  }, [hanzi, size, autoplay, onReady, t]);
 
   const replay = () => {
     const writer = writerRef.current;

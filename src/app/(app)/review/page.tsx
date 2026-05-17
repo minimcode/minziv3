@@ -1,21 +1,31 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useProgress, dueChars, type Outcome, type CharProgress, type DailyEntry } from "@/store/progress";
+import { useCollections, findCollection } from "@/store/collections";
+import { CollectionCover } from "@/components/collections/CollectionCover";
+import { FAVORITES_COLLECTION_ID } from "@/components/collections/collectionCovers";
 import { useViewportWidth } from "@/lib/useViewport";
+import { useMounted } from "@/lib/useMounted";
 import { getChar, meaningRu, meaningShort, ALL_CHARACTERS, type CharRecord } from "@/lib/characters";
+import { memoryStateFor, MEMORY_STATES } from "@/lib/memoryState";
+import { confusionGroupFor } from "@/lib/confusion";
+import { patternsFor, buildImageQuiz, imageFor } from "@/lib/sentences";
 import { Card } from "@/components/ui/Card";
 import { Panda } from "@/components/ui/Panda";
 import { WritingQuiz } from "@/components/learn/WritingQuiz";
 import { StrokeAnimation } from "@/components/learn/StrokeAnimation";
 import { SwipeStack } from "@/components/learn/SwipeStack";
+import { SentenceBuilder } from "@/components/learn/SentenceBuilder";
+import { ImageMatch } from "@/components/learn/ImageMatch";
 import {
   Volume2, RotateCcw, Eye, ChevronRight, ChevronDown,
-  BookOpen, PenTool, Brain, Zap, Star,
+  BookOpen, PenTool, Brain, Zap, Star, Layers,
   ArrowRight, Clock, SkipForward,
-  HelpCircle, Lightbulb,
+  HelpCircle, Lightbulb, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -26,9 +36,17 @@ type SessionPhase =
   | "warmup"      // quick recognition swipes
   | "recognition" // multiple choice quiz
   | "writing"     // writing review with HanziWriter
-  | "context"     // fill-in-the-blank sentences
+  | "context"     // mixed exercise: fill-blank / sentence-builder / image-match
   | "srs"         // SRS rating after writing+context
   | "summary";    // session results
+
+/**
+ * Per-character variant inside the `context` phase. We pick the variant
+ * deterministically from the queue index so the order stays stable but the
+ * user sees variety (recognition / writing / context / sentence / image
+ * rather than five identical «write» steps).
+ */
+type ContextVariant = "fill" | "sentence" | "image";
 
 interface SessionStats {
   total: number;
@@ -170,32 +188,74 @@ function ReviewHeatmap({ daily }: { daily: DailyEntry[] }) {
 
 /* ─── Weak Characters List ──────────────────────────────────────────── */
 
-function WeakCharsList({ chars }: { chars: Record<string, CharProgress> }) {
-  const weak = useMemo(() =>
-    Object.values(chars)
-      .filter((c) => c.status === "weak" || c.lapses >= 2)
-      .sort((a, b) => b.lapses - a.lapses)
-      .slice(0, 5),
-    [chars]
+/**
+ * Derive a real reason a character ended up in the «weak» bucket. We never
+ * fabricate a reason — if the only signal we have is `status === "weak"`
+ * we say so plainly. The bar width is the strength of the signal so the
+ * user can tell which character needs the most help.
+ */
+function weakReason(p: CharProgress, nowMs: number | null):
+  { label: string; tone: string; strength: number } {
+  const ratio = p.attempts > 0 ? p.correct / p.attempts : 1;
+  // Severity: combines lapse pressure, miss-ratio, and staleness.
+  const lapsePressure = Math.min(1, p.lapses / 5);
+  const missPressure = p.attempts >= 3 ? Math.min(1, 1 - ratio) : 0;
+  const staleness =
+    nowMs !== null && p.lastSeen && nowMs > p.lastSeen
+      ? Math.min(1, (nowMs - p.lastSeen) / (14 * 86400_000))
+      : 0;
+  const strength = Math.max(0.18, lapsePressure * 0.6 + missPressure * 0.3 + staleness * 0.1);
+
+  if (p.lapses >= 3) {
+    return { label: `Часто забывается (${p.lapses}×)`, tone: "bg-[var(--red)]", strength };
+  }
+  if (p.attempts >= 3 && ratio < 0.5) {
+    return {
+      label: `Низкий процент верных (${Math.round(ratio * 100)}%)`,
+      tone: "bg-amber-500",
+      strength,
+    };
+  }
+  if (p.lapses >= 1 && ratio < 0.7) {
+    return { label: "Путаница при узнавании", tone: "bg-amber-400", strength };
+  }
+  if (staleness > 0.4) {
+    return { label: "Давно не повторяли", tone: "bg-amber-300", strength };
+  }
+  return { label: "Требует повторения", tone: "bg-stone-400", strength };
+}
+
+function WeakCharsList({
+  chars,
+  nowMs,
+}: {
+  chars: Record<string, CharProgress>;
+  nowMs: number | null;
+}) {
+  const weak = useMemo(
+    () =>
+      Object.values(chars)
+        .filter((c) => c.status === "weak" || c.lapses >= 2 || (c.attempts >= 3 && c.correct / c.attempts < 0.5))
+        .sort((a, b) => b.lapses - a.lapses || a.due - b.due)
+        .slice(0, 5),
+    [chars],
   );
 
-  if (weak.length === 0) return (
-    <p className="text-sm text-[var(--foreground-muted)]">Нет слабых иероглифов</p>
-  );
-
-  const reasons = [
-    { label: "Ошибки в написании", color: "bg-[var(--red)]" },
-    { label: "Ошибки в порядке черт", color: "bg-amber-400" },
-    { label: "Забывается быстро", color: "bg-amber-300" },
-  ];
+  if (weak.length === 0) {
+    return (
+      <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">
+        Здесь появятся иероглифы, в которых вы ошибаетесь чаще всего —
+        мы соберём их по реальным повторениям.
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-3">
-      {weak.map((cp, idx) => {
+      {weak.map((cp) => {
         const c = getChar(cp.hanzi);
         if (!c) return null;
-        const reason = reasons[idx % reasons.length];
-        const barWidth = Math.min(100, Math.max(20, (cp.lapses / 5) * 100));
+        const reason = weakReason(cp, nowMs);
         return (
           <div key={cp.hanzi} className="flex items-center gap-3">
             <span className="hanzi text-2xl w-8 text-center">{cp.hanzi}</span>
@@ -203,8 +263,8 @@ function WeakCharsList({ chars }: { chars: Record<string, CharProgress> }) {
               <p className="text-xs text-[var(--foreground-muted)] truncate">{reason.label}</p>
               <div className="h-1.5 rounded-full bg-[var(--surface-3)] mt-1">
                 <div
-                  className={cn("h-full rounded-full", reason.color)}
-                  style={{ width: `${barWidth}%` }}
+                  className={cn("h-full rounded-full", reason.tone)}
+                  style={{ width: `${Math.round(reason.strength * 100)}%` }}
                 />
               </div>
             </div>
@@ -425,7 +485,42 @@ const SRS_BUTTONS: { id: Outcome; label: string; sublabel: string; color: string
   { id: "easy", label: "Легко", sublabel: "Через неделю", color: "text-[var(--green-deep)]", bgColor: "bg-[var(--bamboo-soft)] border-[var(--bamboo)]/20", pandaSrc: "/panda/panda_head_happy.png" },
 ];
 
-function SRSButtons({ char, onOutcome }: { char: CharRecord; onOutcome: (o: Outcome) => void }) {
+/**
+ * Build a short, real explanation of where this character sits in the
+ * user's memory. Used above the SRS rating row so the user understands
+ * *why* they're rating something — never random phrases.
+ */
+function memoryHintFor(p: CharProgress | undefined, nowMs: number | null): string | null {
+  if (!p) return null;
+  const state = memoryStateFor(p);
+  const ratio = p.attempts > 0 ? p.correct / p.attempts : 1;
+  const stale =
+    nowMs && p.lastSeen && nowMs > p.lastSeen
+      ? Math.round((nowMs - p.lastSeen) / 86400_000)
+      : 0;
+  if (p.lapses >= 3) return "Этот знак начинает забываться — повторите внимательно.";
+  if (state === "rooted") return `${p.hanzi || "Иероглиф"} уже укрепился в долговременной памяти.`;
+  if (state === "mature") return "Этот знак держится уверенно — короткая проверка.";
+  if (state === "young") return "Память свежая, но ещё хрупкая — обратите внимание.";
+  if (state === "learning" && p.reps < 3) return "Новое — пишите медленно, думая о смысле.";
+  if (stale >= 7) return `Вы давно не возвращались сюда (${stale} дн).`;
+  if (p.attempts >= 3 && ratio < 0.5) return "Узнавание идёт тяжело — это нормально, не торопитесь.";
+  return MEMORY_STATES[state].hint;
+}
+
+function SRSButtons({
+  char,
+  progress,
+  nowMs,
+  onOutcome,
+}: {
+  char: CharRecord;
+  progress: CharProgress | undefined;
+  nowMs: number | null;
+  onOutcome: (o: Outcome) => void;
+}) {
+  const hint = memoryHintFor(progress, nowMs);
+  const similar = confusionGroupFor(char.hanzi)?.filter((h) => h !== char.hanzi) ?? [];
   return (
     <div className="flex flex-col items-center gap-5 float-up">
       <Panda mood="studying" size={100} />
@@ -433,6 +528,19 @@ function SRSButtons({ char, onOutcome }: { char: CharRecord; onOutcome: (o: Outc
       <p className="text-sm text-[var(--foreground-muted)] text-center max-w-sm">
         Оцените, насколько легко вы вспомнили <span className="hanzi text-base">{char.hanzi}</span> ({meaningRu(char) || char.meaningPrimary})
       </p>
+      {hint && (
+        <p className="text-xs text-[var(--green-deep)] text-center max-w-sm leading-snug">
+          {hint}
+        </p>
+      )}
+      {similar.length > 0 && (
+        <div className="text-[11px] text-[var(--foreground-muted)] flex items-center gap-1.5">
+          <span>Не путайте с</span>
+          {similar.map((h) => (
+            <span key={h} className="hanzi text-base text-[var(--ink)]">{h}</span>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-4 gap-3 w-full max-w-lg mt-2">
         {SRS_BUTTONS.map(({ id, label, sublabel, color, bgColor, pandaSrc }) => (
@@ -533,10 +641,29 @@ function SummaryScreen({
    ═══════════════════════════════════════════════════════════════════════ */
 
 export default function ReviewPage() {
+  return (
+    <Suspense fallback={null}>
+      <ReviewPageInner />
+    </Suspense>
+  );
+}
+
+function ReviewPageInner() {
   const chars = useProgress((s) => s.chars);
 
   const daily = useProgress((s) => s.daily);
   const recordOutcome = useProgress((s) => s.recordOutcome);
+
+  /* Collections — for the "Повторить коллекцию" entry point. We read the
+     full list here so the dashboard can render a small carousel, and we
+     watch the `?collection=<id>` query param to auto-start a session
+     against that collection. */
+  const collections = useCollections((s) => s.collections);
+  const touchCollectionReviewed = useCollections((s) => s.touchReviewed);
+  const mounted = useMounted();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const collectionParam = searchParams.get("collection");
 
   /* Writing canvas size — responsive to viewport so mobile (≤480px) gets
      a smaller canvas that fits next to its action buttons without
@@ -565,7 +692,21 @@ export default function ReviewPage() {
 
   /* Dashboard stats — always computed */
   const dueCnt = useMemo(() => dueChars(chars).length, [chars]);
-  const weakCnt = useMemo(() => Object.values(chars).filter((c) => c.status === "weak" || c.lapses >= 2).length, [chars]);
+  const weakCnt = useMemo(
+    () =>
+      Object.values(chars).filter(
+        (c) =>
+          c.status === "weak" ||
+          c.lapses >= 2 ||
+          (c.attempts >= 3 && c.correct / c.attempts < 0.5),
+      ).length,
+    [chars],
+  );
+  const studiedCharSet = useMemo(() => {
+    const s = new Set<string>();
+    for (const k of Object.keys(chars)) s.add(k);
+    return s;
+  }, [chars]);
   /* SRS visibility — how many already-studied characters are *not yet* due
      (so the user understands where their progress went; without this the
      dashboard appears empty after a lesson because SRS intervals
@@ -638,13 +779,32 @@ export default function ReviewPage() {
      Quick session (§19.5 #6) caps at 5 items for ~3 minutes — the
      daily minimum that still keeps the streak alive (§13). */
   const startSession = useCallback(
-    (mode: "all" | "weak" | "writing", size: "quick" | "default" | "deep" = "default") => {
+    (
+      mode: "all" | "weak" | "writing" | "collection",
+      size: "quick" | "default" | "deep" = "default",
+      collectionId?: string,
+    ) => {
       let q: string[];
       if (mode === "weak") {
         q = Object.values(chars)
           .filter((c) => c.status === "weak" || c.lapses >= 2)
           .sort((a, b) => b.lapses - a.lapses)
           .map((c) => c.hanzi);
+      } else if (mode === "collection") {
+        if (!collectionId) return;
+        // "Избранное" is a virtual shelf — pull hanzi straight from the
+        // progress store's ⭐ flag instead of the collections store.
+        if (collectionId === FAVORITES_COLLECTION_ID) {
+          q = Object.values(chars)
+            .filter((c) => c.favorite)
+            .map((c) => c.hanzi);
+        } else {
+          const col = findCollection(collections, collectionId);
+          if (!col) return;
+          // For collections we keep the user's ordering and don't filter
+          // by due — the whole point is "review this shelf right now".
+          q = col.hanzi.slice();
+        }
       } else {
         q = dueChars(chars).map((c) => c.hanzi);
       }
@@ -667,10 +827,35 @@ export default function ReviewPage() {
       setShowTip(false);
       setWeakThisSession([]);
       setSessionStats({ total: 0, correct: 0, written: 0, recognized: 0, contextCorrect: 0, startTime: Date.now() });
+      if (mode === "collection" && collectionId && collectionId !== FAVORITES_COLLECTION_ID) {
+        touchCollectionReviewed(collectionId);
+      }
       setPhase("warmup");
     },
-    [chars]
+    [chars, collections, touchCollectionReviewed],
   );
+
+  /* Auto-start collection review when /review?collection=<id> is opened.
+     We strip the query param afterwards so reload doesn't keep
+     re-triggering the start. The setState chain inside startSession is
+     intentional here — this effect fires once per query-param arrival,
+     not on every render. */
+  useEffect(() => {
+    if (!collectionParam) return;
+    if (!mounted) return;
+    if (collectionParam === FAVORITES_COLLECTION_ID) {
+      const hasFavorites = Object.values(chars).some((c) => c.favorite);
+      if (!hasFavorites) return;
+    } else {
+      const col = findCollection(collections, collectionParam);
+      if (!col || col.hanzi.length === 0) return;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional one-shot transition on param arrival
+    startSession("collection", "default", collectionParam);
+    router.replace("/review");
+    // We intentionally only react to mount + the param's first appearance.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectionParam, mounted]);
 
   /* Advance to next character within current phase, or move to next phase */
   const advanceInPhase = useCallback(() => {
@@ -740,8 +925,8 @@ export default function ReviewPage() {
         <h3 className="font-medium mb-4">Сегодня</h3>
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="text-center">
-            <div className="text-2xl font-bold text-[var(--green)] tabular-nums">{dueCnt || todayReviewed}</div>
-            <div className="text-[11px] text-[var(--foreground-muted)]">к изучению</div>
+            <div className="text-2xl font-bold text-[var(--green)] tabular-nums">{dueCnt}</div>
+            <div className="text-[11px] text-[var(--foreground-muted)]">в очереди</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-[var(--red)] tabular-nums">{weakCnt}</div>
@@ -749,8 +934,10 @@ export default function ReviewPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 mb-2">
-          <Clock size={14} className="text-[var(--foreground-muted)]" />
-          <span className="text-sm text-[var(--foreground-muted)]">{Math.max(1, Math.round(todayReviewed * 0.7))} мин потрачено</span>
+          <BookOpen size={14} className="text-[var(--foreground-muted)]" />
+          <span className="text-sm text-[var(--foreground-muted)] tabular-nums">
+            {todayReviewed} {pluralChars(todayReviewed)} сегодня
+          </span>
         </div>
         <div className="flex items-end gap-1 h-12 mt-3">
           {todayBars.map((bar, i) => (
@@ -773,7 +960,7 @@ export default function ReviewPage() {
             </button>
           )}
         </div>
-        <WeakCharsList chars={chars} />
+        <WeakCharsList chars={chars} nowMs={nowMs} />
       </Card>
 
       <Card className="p-5">
@@ -807,7 +994,7 @@ export default function ReviewPage() {
         <p className="text-sm text-[var(--foreground-muted)] mb-1">Сегодняшняя цель</p>
         <div className="flex items-end gap-3 mb-2">
           <span className="text-4xl font-bold text-[var(--green)] leading-none tabular-nums">{todayReviewed}</span>
-          <span className="text-base text-[var(--foreground-muted)] pb-0.5">/ 30 мин</span>
+          <span className="text-base text-[var(--foreground-muted)] pb-0.5">/ 30 повторений</span>
         </div>
         <div className="flex items-center gap-4 mb-4">
           <div className="flex-1 h-2.5 rounded-full bg-[var(--surface-3)] overflow-hidden max-w-lg">
@@ -1010,30 +1197,79 @@ export default function ReviewPage() {
               </div>
             )}
 
-            {/* ─── CONTEXT PHASE ─── */}
-            {phase === "context" && (
-              <ContextCard
-                key={`ctx-${currentHanzi}-${queueIdx}`}
-                char={currentChar}
-                allChars={ALL_CHARACTERS}
-                onAnswer={(correct) => {
-                  setSessionStats((s) => ({
-                    ...s,
-                    contextCorrect: s.contextCorrect + (correct ? 1 : 0),
-                  }));
-                  if (!correct) {
-                    setWeakThisSession((prev) =>
-                      prev.includes(currentChar.hanzi) ? prev : [...prev, currentChar.hanzi]
-                    );
-                  }
-                  setTimeout(() => advanceInPhase(), 200);
-                }}
-              />
-            )}
+            {/* ─── CONTEXT PHASE ───
+                Picks one of three deterministic variants per char so the
+                user sees real variety instead of write-write-write-write:
+                  • sentence-builder when an appropriate pattern exists
+                  • image-match when we have a curated emoji for the char
+                  • otherwise the original fill-in-the-blank ContextCard
+                Selection is keyed on (queueIdx, hanzi) so it's stable
+                within a render but rotates across the session. */}
+            {phase === "context" && (() => {
+              const sentencePatterns = patternsFor(currentHanzi, studiedCharSet);
+              const img = imageFor(currentHanzi);
+              // Variant priority — cycle so we don't show the same exercise
+              // type twice in a row when both are available.
+              const variants: ContextVariant[] = [];
+              if (sentencePatterns.length > 0) variants.push("sentence");
+              if (img) variants.push("image");
+              variants.push("fill");
+              const variant = variants[queueIdx % variants.length];
+
+              const onAnswer = (correct: boolean) => {
+                setSessionStats((s) => ({
+                  ...s,
+                  contextCorrect: s.contextCorrect + (correct ? 1 : 0),
+                }));
+                if (!correct) {
+                  setWeakThisSession((prev) =>
+                    prev.includes(currentChar.hanzi) ? prev : [...prev, currentChar.hanzi]
+                  );
+                }
+                setTimeout(() => advanceInPhase(), 200);
+              };
+
+              if (variant === "sentence") {
+                const pattern = sentencePatterns[stringSeed(currentHanzi + queueIdx) % sentencePatterns.length];
+                return (
+                  <SentenceBuilder
+                    key={`sent-${currentHanzi}-${queueIdx}`}
+                    pattern={pattern}
+                    onDone={onAnswer}
+                  />
+                );
+              }
+              if (variant === "image") {
+                const quiz = buildImageQuiz(currentHanzi, 3);
+                if (quiz) {
+                  return (
+                    <ImageMatch
+                      key={`img-${currentHanzi}-${queueIdx}`}
+                      entry={quiz.entry}
+                      options={quiz.options}
+                      onAnswer={onAnswer}
+                    />
+                  );
+                }
+              }
+              return (
+                <ContextCard
+                  key={`ctx-${currentHanzi}-${queueIdx}`}
+                  char={currentChar}
+                  allChars={ALL_CHARACTERS}
+                  onAnswer={onAnswer}
+                />
+              );
+            })()}
 
             {/* ─── SRS PHASE ─── */}
             {phase === "srs" && (
-              <SRSButtons char={currentChar} onOutcome={handleSRSOutcome} />
+              <SRSButtons
+                char={currentChar}
+                progress={chars[currentChar.hanzi]}
+                nowMs={nowMs}
+                onOutcome={handleSRSOutcome}
+              />
             )}
           </div>
 
@@ -1056,7 +1292,7 @@ export default function ReviewPage() {
         <span className="text-4xl font-bold text-[var(--green)] leading-none tabular-nums">
           {todayReviewed}
         </span>
-        <span className="text-base text-[var(--foreground-muted)] pb-0.5">/ 30 мин</span>
+        <span className="text-base text-[var(--foreground-muted)] pb-0.5">/ 30 повторений</span>
       </div>
       <div className="flex items-center gap-4 mb-8">
         <div className="flex-1 h-2.5 rounded-full bg-[var(--surface-3)] overflow-hidden max-w-lg">
@@ -1152,6 +1388,62 @@ export default function ReviewPage() {
             </button>
           </div>
 
+          {/* Collections — pick a curated shelf to review.
+              Hidden until the user has at least one collection. */}
+          {mounted && collections.length > 0 && (
+            <Card className="p-5 sm:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Layers size={16} className="text-[var(--foreground-muted)]" />
+                  <h2 className="text-lg font-display font-medium">Повторить коллекцию</h2>
+                </div>
+                <Link
+                  href="/collections"
+                  className="text-xs text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+                >
+                  Все
+                </Link>
+              </div>
+              <p className="text-xs text-[var(--foreground-muted)] mb-3">
+                Маленькая полка, к которой хочется вернуться. Только те иероглифы, что вы туда положили.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {collections.slice(0, 4).map((col) => (
+                  <button
+                    key={col.id}
+                    type="button"
+                    onClick={() =>
+                      col.hanzi.length > 0
+                        ? startSession("collection", sessionSize, col.id)
+                        : null
+                    }
+                    disabled={col.hanzi.length === 0}
+                    className={cn(
+                      "card-soft p-3 flex items-center gap-3 text-left transition-all",
+                      col.hanzi.length === 0
+                        ? "opacity-60 cursor-not-allowed"
+                        : "hover:shadow-sm hover:-translate-y-0.5",
+                    )}
+                  >
+                    <div className="w-16 h-10 shrink-0 rounded-[10px] overflow-hidden">
+                      <CollectionCover coverId={col.coverId} collectionName={col.name} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium truncate">{col.name}</div>
+                      <div className="text-[11px] text-[var(--foreground-muted)] tabular-nums">
+                        {col.hanzi.length} {pluralChars(col.hanzi.length)}
+                      </div>
+                    </div>
+                    <ChevronRight
+                      size={14}
+                      className="text-[var(--foreground-soft)] shrink-0"
+                    />
+                  </button>
+                ))}
+              </div>
+            </Card>
+          )}
+
           {/* Due characters preview grid */}
           {dueCnt > 0 && (
             <Card className="p-6">
@@ -1205,6 +1497,51 @@ export default function ReviewPage() {
               </Link>
             </Card>
           )}
+
+          {/* Memory atlas — real distribution of characters across the
+              five memory states (§4). No fake percentages: every cell is
+              an actual count from the Zustand store. */}
+          {studiedCharSet.size > 0 && (() => {
+            const tally = { seen: 0, learning: 0, young: 0, mature: 0, rooted: 0 };
+            for (const p of Object.values(chars)) {
+              tally[memoryStateFor(p)] += 1;
+            }
+            const total = studiedCharSet.size;
+            const cells: Array<{ key: keyof typeof tally; label: string; tone: string }> = [
+              { key: "learning", label: "Учу", tone: "bg-[var(--red-soft)] text-[var(--red-deep)]" },
+              { key: "young", label: "Свежее", tone: "bg-[color:rgba(91,117,96,0.12)] text-[#3a5340]" },
+              { key: "mature", label: "Зрелое", tone: "bg-[var(--green-soft)] text-[var(--green-deep)]" },
+              { key: "rooted", label: "Укоренилось", tone: "bg-[color:rgba(26,24,20,0.08)] text-[var(--ink)]" },
+            ];
+            return (
+              <Card className="p-5 sm:p-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-[var(--green-soft)] flex items-center justify-center shrink-0">
+                    <Sparkles size={18} className="text-[var(--green-deep)]" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium">Карта вашей памяти</h3>
+                    <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
+                      {total} {pluralChars(total)} в работе — реальные состояния по интервалам.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {cells.map(({ key, label, tone }) => (
+                    <div
+                      key={key}
+                      className={cn("rounded-[var(--radius-md)] px-3 py-3 text-center", tone)}
+                    >
+                      <div className="text-2xl font-display font-medium tabular-nums leading-none">
+                        {tally[key]}
+                      </div>
+                      <div className="text-[11px] mt-1 opacity-80">{label}</div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            );
+          })()}
 
           {/* SRS visibility — explain why some studied characters
               haven't yet appeared in the review queue. Hidden when there

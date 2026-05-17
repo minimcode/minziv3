@@ -25,24 +25,27 @@ const ITEMS = [
 
 export function Features() {
   return (
-    <section id="features" className="py-14 sm:py-20">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {ITEMS.map(({ icon: Icon, title, body }, i) => (
+    <section id="features" className="py-10 sm:py-14">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-[var(--border)] rounded-lg overflow-hidden border border-[var(--border)]">
+          {ITEMS.map(({ icon: Icon, title, body }) => (
             <div
               key={title}
-              className="glass rounded-2xl p-6 flex flex-col gap-3 hover-lift"
-              style={{ animationDelay: `${i * 80}ms` }}
+              className="bg-[var(--surface)] p-5 sm:p-6 flex items-start gap-4 transition-colors duration-150 hover:bg-[var(--surface-2)]"
             >
-              <div className="h-11 w-11 rounded-xl bg-[var(--green-soft)] text-[var(--green-deep)] flex items-center justify-center">
-                <Icon size={20} strokeWidth={1.8} />
+              <Icon
+                size={18}
+                strokeWidth={1.6}
+                className="text-[var(--green)] shrink-0 mt-0.5"
+              />
+              <div>
+                <h3 className="font-medium text-[15px] tracking-tight leading-snug">
+                  {title}
+                </h3>
+                <p className="text-sm text-[var(--foreground-muted)] leading-relaxed mt-1.5">
+                  {body}
+                </p>
               </div>
-              <h3 className="font-display font-medium text-lg tracking-tight">
-                {title}
-              </h3>
-              <p className="text-sm text-[var(--foreground-muted)] leading-relaxed">
-                {body}
-              </p>
             </div>
           ))}
         </div>

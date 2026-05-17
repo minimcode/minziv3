@@ -1,30 +1,31 @@
 "use client";
 
 /**
- * Tinder-like swipe stack for the Review warmup.
+ * Swipe-driven review card stack.
  *
  * Behaviour (matches §19 calm philosophy — no shame, no celebration):
  *  - Top card is dragged horizontally.
- *  - Right swipe = "remember" → jade halo grows with distance.
- *  - Left swipe  = "forget"  → soft terracotta wash grows with distance.
+ *  - Right swipe → "remember"  → jade ink glow grows with distance.
+ *  - Left swipe  → "forget"    → warm terracotta wash grows with distance.
+ *  - Calm motion: ±2° tilt cap, 1→1.02 scale bump, soft spring return.
  *  - Thresholds: |x| < 25% viewport → nothing.
- *                25–60% → preview glow + gesture hint fades in.
- *                ≥ 60% or |velocity| > 800 → commit, fly away.
- *  - Commit → navigator.vibrate(10), card flies off-screen in
- *    {@link FLY_DURATION_MS}ms, parent advances the queue.
+ *                25–60%             → preview glow + gesture hint fades in.
+ *                ≥ 60% or |v| > 800  → commit, fly away.
+ *  - Commit → light haptic (10 ms), card flies off-screen in
+ *    {@link FLY_DURATION_MS} ms, parent advances the queue.
  *  - Below the top card, the next card peeks at scale 0.96 / opacity 0.7
  *    so the user feels continuity. When the top commits and the parent
  *    moves to the next index, the peek "rises" into top position via a
  *    smooth scale/opacity animation.
  *
  * Hold-to-reveal:
- *  - Pinyin / meaning are hidden by default (Phase 2 of the plan).
+ *  - Pinyin / meaning are hidden by default.
  *  - Tap the card → reveals. Press Space/Enter → reveals (keyboard a11y).
  *  - State resets on every new top card.
  *
  * Accessibility:
  *  - Keyboard: ← (forget), → (remember), Space/Enter (reveal).
- *  - prefers-reduced-motion: skip fly-away animation; commit instantly.
+ *  - prefers-reduced-motion: no rotation/scale, no fly-away — commit instant.
  */
 
 import {
@@ -126,22 +127,49 @@ export function SwipeStack({ queue, index, onCommit }: Props) {
 
   const x = useMotionValue(0);
 
-  // Glow + tilt + hint derive from x.
-  const rightGlow = useTransform(
-    x,
-    [0, previewThreshold, commitThreshold],
-    [0, 0.45, 0.95],
-  );
-  const leftGlow = useTransform(
-    x,
-    [-commitThreshold, -previewThreshold, 0],
-    [0.75, 0.35, 0],
-  );
+  // Calm tilt cap: ±2° at full viewport drag. Prevents Tinder-style flop.
   const tilt = useTransform(
     x,
     [-vw, 0, vw],
-    [-14, 0, 14],
+    reducedMotion ? [0, 0, 0] : [-2, 0, 2],
   );
+  // Subtle tactile bump: 1.00 → 1.02 as the card approaches commit. The
+  // top card lifts gently off the peek card while you drag.
+  const cardScale = useTransform(x, (v) => {
+    if (reducedMotion) return 1;
+    const t = Math.min(1, Math.abs(v) / commitThreshold);
+    return 1 + t * 0.02;
+  });
+  // Glow derives from x; we render two layered glows (right=jade, left=red)
+  // and modulate opacity. Sharp ramp toward commit so the bloom is visible.
+  const rightGlow = useTransform(
+    x,
+    [0, previewThreshold * 0.6, previewThreshold, commitThreshold],
+    [0, 0.35, 0.7, 1],
+  );
+  const leftGlow = useTransform(
+    x,
+    [-commitThreshold, -previewThreshold, -previewThreshold * 0.6, 0],
+    [1, 0.7, 0.35, 0],
+  );
+  // Aura ring on the card itself — animates via boxShadow so it bleeds
+  // beyond the card outline like ink on rice paper.
+  const cardShadow = useTransform(x, (v) => {
+    const t = Math.min(1, Math.abs(v) / commitThreshold);
+    if (t < 0.02) return "var(--shadow-card, 0 1px 2px rgba(0,0,0,0.06))";
+    if (v >= 0) {
+      // jade ink (var(--green) territory) — soft outer bloom + faint inner kiss
+      return (
+        `0 0 ${20 + t * 70}px ${4 + t * 8}px rgba(127, 179, 140, ${0.18 + t * 0.42}),` +
+        `inset 0 0 ${30 + t * 50}px rgba(127, 179, 140, ${t * 0.28})`
+      );
+    }
+    // warm terracotta — slightly less saturated so it never reads as alarm.
+    return (
+      `0 0 ${20 + t * 70}px ${4 + t * 8}px rgba(217, 114, 102, ${0.16 + t * 0.36}),` +
+      `inset 0 0 ${30 + t * 50}px rgba(217, 114, 102, ${t * 0.22})`
+    );
+  });
   const hintRight = useTransform(x, [0, previewThreshold * 0.8], [0.4, 1]);
   const hintLeft = useTransform(x, [-previewThreshold * 0.8, 0], [1, 0.4]);
 
@@ -165,11 +193,29 @@ export function SwipeStack({ queue, index, onCommit }: Props) {
     }
   }, [top?.hanzi, x]);
 
+  // Haptic gate: fire only once when crossing the preview threshold in
+  // either direction so we don't spam vibrations during every micro-drag.
+  const hapticPrimedRef = useRef<-1 | 0 | 1>(0);
+  useEffect(() => {
+    const unsubscribe = x.on("change", (v) => {
+      const dir: -1 | 0 | 1 =
+        v > previewThreshold ? 1 : v < -previewThreshold ? -1 : 0;
+      if (dir !== 0 && hapticPrimedRef.current !== dir) {
+        hapticPrimedRef.current = dir;
+        vibrate(6);
+      } else if (dir === 0 && hapticPrimedRef.current !== 0) {
+        // Reset when card returns to rest so the next entry will re-fire.
+        hapticPrimedRef.current = 0;
+      }
+    });
+    return () => unsubscribe();
+  }, [x, previewThreshold]);
+
   const commit = useCallback(
     (direction: -1 | 1) => {
       if (committingDir !== 0 || !top) return;
       setCommittingDir(direction);
-      vibrate(10);
+      vibrate(12);
       if (reducedMotion) {
         // Skip the fly-away; commit synchronously. Parent advances and
         // useEffect above resets revealed/x for the new top.
@@ -199,7 +245,8 @@ export function SwipeStack({ queue, index, onCommit }: Props) {
       if (past || fast) {
         commit(offset > 0 ? 1 : -1);
       } else {
-        void animate(x, 0, { type: "spring", stiffness: 320, damping: 26 });
+        // Soft, slightly under-damped spring — feels tactile without bouncing.
+        void animate(x, 0, { type: "spring", stiffness: 260, damping: 24 });
       }
     },
     [top, committingDir, commitThreshold, commit, x],
@@ -249,12 +296,15 @@ export function SwipeStack({ queue, index, onCommit }: Props) {
         {/* Top card */}
         <motion.div
           key={top.hanzi}
-          className="absolute inset-x-0 top-0 bottom-10 mx-auto"
+          className="absolute inset-x-0 top-0 bottom-10 mx-auto rounded-2xl"
           style={{
             x,
             rotate: tilt,
+            scale: cardScale,
+            boxShadow: cardShadow,
             zIndex: 2,
             touchAction: "pan-y",
+            willChange: "transform, box-shadow",
           }}
           drag={committingDir === 0 ? "x" : false}
           dragConstraints={{ left: 0, right: 0 }}
@@ -285,44 +335,16 @@ export function SwipeStack({ queue, index, onCommit }: Props) {
               : "Иероглиф. Нажмите чтобы раскрыть. Свайп вправо — помню, влево — позже."
           }`}
         >
-          {/* Right glow — jade ink diffusion. Sits BEHIND the card
-              face so the white card surface tints toward jade as the
-              user drags right. No mix-blend-mode — iOS Safari renders
-              it inconsistently. We use a plain colored gradient with
-              opacity tracking. */}
-          <motion.div
-            aria-hidden
-            className="absolute -inset-4 rounded-[32px] pointer-events-none"
-            style={{
-              opacity: rightGlow,
-              background:
-                "radial-gradient(65% 70% at 75% 50%, rgba(46,125,79,0.55), rgba(46,125,79,0.18) 55%, transparent 80%)",
-              filter: "blur(2px)",
-              zIndex: 0,
-            }}
-          />
-          {/* Left wash — muted terracotta paper-brush */}
-          <motion.div
-            aria-hidden
-            className="absolute -inset-4 rounded-[32px] pointer-events-none"
-            style={{
-              opacity: leftGlow,
-              background:
-                "radial-gradient(65% 70% at 25% 50%, rgba(196,100,78,0.45), rgba(196,100,78,0.14) 55%, transparent 80%)",
-              filter: "blur(2px)",
-              zIndex: 0,
-            }}
-          />
-          {/* Inner ring tint — a softer accent painted ON the card itself,
-              so even on devices that flatten the outer glow there's still
-              a visible cue. */}
+          {/* Surface tints painted ON the card itself — overlay the card
+              face so even on devices that flatten the outer bloom there's
+              still a visible jade/terracotta wash. */}
           <motion.div
             aria-hidden
             className="absolute inset-0 rounded-2xl pointer-events-none"
             style={{
               opacity: rightGlow,
-              boxShadow:
-                "inset 0 0 60px 6px rgba(46,125,79,0.35)",
+              background:
+                "radial-gradient(120% 80% at 100% 50%, rgba(127, 179, 140, 0.32), rgba(127, 179, 140, 0.08) 55%, transparent 80%)",
               zIndex: 3,
             }}
           />
@@ -331,8 +353,8 @@ export function SwipeStack({ queue, index, onCommit }: Props) {
             className="absolute inset-0 rounded-2xl pointer-events-none"
             style={{
               opacity: leftGlow,
-              boxShadow:
-                "inset 0 0 60px 6px rgba(196,100,78,0.28)",
+              background:
+                "radial-gradient(120% 80% at 0% 50%, rgba(217, 114, 102, 0.28), rgba(217, 114, 102, 0.07) 55%, transparent 80%)",
               zIndex: 3,
             }}
           />

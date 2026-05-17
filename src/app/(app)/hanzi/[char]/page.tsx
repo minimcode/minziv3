@@ -1,18 +1,52 @@
 "use client";
 
-import { use, useMemo } from "react";
+import { Suspense, use, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { ArrowLeft, FolderPlus } from "lucide-react";
 import { getChar } from "@/lib/characters";
 import { useProgress } from "@/store/progress";
 import { useMounted } from "@/lib/useMounted";
 import { Card } from "@/components/ui/Card";
 import { StrokeAnimation } from "@/components/learn/StrokeAnimation";
+import { AddToCollectionModal } from "@/components/collections/AddToCollectionModal";
+import { useCollections } from "@/store/collections";
 import {
   MEMORY_STATES,
   memoryStateFor,
   toneClasses,
 } from "@/lib/memoryState";
+
+/**
+ * Resolve the back link for the detail page.
+ *
+ * If we arrived from a known place (currently /collections/<id>), go
+ * straight back there with an explicit label. Falls back to /garden
+ * so users coming in from an SRS session or a deep link still have a
+ * sane "back" target. We only honour relative `/`-prefixed paths to
+ * avoid an open-redirect via the query param.
+ */
+function resolveBack(fromParam: string | null, collectionName?: string): {
+  href: string;
+  label: string;
+} {
+  if (fromParam && fromParam.startsWith("/") && !fromParam.startsWith("//")) {
+    if (fromParam.startsWith("/collections/")) {
+      return {
+        href: fromParam,
+        label: collectionName ? collectionName : "К коллекции",
+      };
+    }
+    if (fromParam === "/dictionary") {
+      return { href: "/dictionary", label: "Словарь" };
+    }
+    if (fromParam === "/garden") {
+      return { href: "/garden", label: "Сад" };
+    }
+    return { href: fromParam, label: "Назад" };
+  }
+  return { href: "/garden", label: "Сад" };
+}
 
 /**
  * §15 / §19.5 #2 — Per-hanzi page.
@@ -63,11 +97,35 @@ export default function HanziDetailPage({
 }: {
   params: Promise<{ char: string }>;
 }) {
+  return (
+    <Suspense fallback={null}>
+      <HanziDetailInner params={params} />
+    </Suspense>
+  );
+}
+
+function HanziDetailInner({
+  params,
+}: {
+  params: Promise<{ char: string }>;
+}) {
   const { char: rawChar } = use(params);
   const char = decodeURIComponent(rawChar);
   const c = getChar(char);
   const chars = useProgress((s) => s.chars);
   const mounted = useMounted();
+  const [addToCollectionOpen, setAddToCollectionOpen] = useState(false);
+  const searchParams = useSearchParams();
+  const fromParam = searchParams?.get("from") ?? null;
+  // If `?from=/collections/<id>` is present, fetch the collection name
+  // (when known) so the back link reads as the collection title rather
+  // than the generic "К коллекции".
+  const fromCollectionName = useCollections((s) => {
+    if (!fromParam || !fromParam.startsWith("/collections/")) return undefined;
+    const id = fromParam.slice("/collections/".length);
+    return s.collections.find((col) => col.id === id)?.name;
+  });
+  const back = resolveBack(fromParam, fromCollectionName);
 
   const p = mounted ? chars[char] : undefined;
   const state = memoryStateFor(p);
@@ -108,10 +166,10 @@ export default function HanziDetailPage({
           Иероглиф не найден
         </h1>
         <Link
-          href="/garden"
+          href={back.href}
           className="text-sm text-[var(--foreground-muted)] inline-flex items-center gap-1.5"
         >
-          <ArrowLeft size={14} /> В сад
+          <ArrowLeft size={14} /> {back.label}
         </Link>
       </div>
     );
@@ -119,12 +177,21 @@ export default function HanziDetailPage({
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-8 py-8">
-      <Link
-        href="/garden"
-        className="text-xs text-[var(--foreground-muted)] inline-flex items-center gap-1.5 mb-6 hover:text-[var(--foreground)]"
-      >
-        <ArrowLeft size={12} /> Сад
-      </Link>
+      <div className="flex items-center justify-between mb-6">
+        <Link
+          href={back.href}
+          className="text-xs text-[var(--foreground-muted)] inline-flex items-center gap-1.5 hover:text-[var(--foreground)]"
+        >
+          <ArrowLeft size={12} /> {back.label}
+        </Link>
+        <button
+          type="button"
+          onClick={() => setAddToCollectionOpen(true)}
+          className="inline-flex items-center gap-1.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--green)] px-3 py-1.5 rounded-lg hover:bg-[var(--green-soft)] transition-colors"
+        >
+          <FolderPlus size={13} /> В коллекцию
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-8 mb-8">
         <div className="flex flex-col items-center">
@@ -201,6 +268,11 @@ export default function HanziDetailPage({
         Каждое измерение — отдельная нить памяти. Они растут не вместе,
         а как лоза по решётке.
       </p>
+
+      <AddToCollectionModal
+        hanzi={addToCollectionOpen ? [char] : null}
+        onClose={() => setAddToCollectionOpen(false)}
+      />
     </div>
   );
 }

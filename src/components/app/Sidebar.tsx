@@ -12,6 +12,7 @@ import {
   Settings,
   Leaf,
   PenTool,
+  Layers,
 } from "lucide-react";
 import Image from "next/image";
 import { ProgressBar } from "@/components/ui/Progress";
@@ -24,6 +25,7 @@ const NAV = [
   { href: "/review", label: "Повторение", icon: Repeat },
   { href: "/garden", label: "Сад", icon: Leaf },
   { href: "/dictionary", label: "Словарь", icon: Book },
+  { href: "/collections", label: "Коллекции", icon: Layers },
   { href: "/graphemes", label: "Графемы", icon: PenTool },
   { href: "/stats", label: "Статистика", icon: BarChart3 },
   { href: "/profile", label: "Профиль", icon: User },

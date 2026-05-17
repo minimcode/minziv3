@@ -1,9 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ALL_CHARACTERS, getChar, meaningRu, type CharRecord } from "@/lib/characters";
+import { motion, type PanInfo } from "framer-motion";
+import {
+  ALL_CHARACTERS,
+  getChar,
+  meaningRu,
+  displayMeaning,
+  displayMeaningOf,
+  displayMeaningFull,
+  componentLabelFor,
+  pinyinOf,
+  type CharRecord,
+} from "@/lib/characters";
+import { confusionGroupFor } from "@/lib/confusion";
 import { Card } from "@/components/ui/Card";
-import { Eraser, Search, Undo2, PenTool } from "lucide-react";
+import { Eraser, Search, Undo2, PenTool, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 interface CharMatch {
@@ -24,6 +36,10 @@ export default function GraphemesPage() {
   const [ready, setReady] = useState(false);
   const [textQuery, setTextQuery] = useState("");
   const [strokeCount, setStrokeCount] = useState(0);
+  /* Mobile detail panel — on small screens we don't want a long inline
+     scroll after the canvas; tapping a card opens a bottom sheet
+     instead. Desktop ignores this flag entirely. */
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const matcherRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,13 +67,47 @@ export default function GraphemesPage() {
 
   const selectCharFn = useCallback((hanzi: string) => {
     const c = getChar(hanzi);
-    if (!c) return;
-    setSelectedChar(c);
+    if (c) {
+      setSelectedChar(c);
+    } else {
+      // Character is outside the HSK 3.0 dataset (the MMAH stroke index
+      // covers many more characters than we have records for). Show a
+      // minimal record so the detail pane still opens — the optional
+      // fields just collapse.
+      setSelectedChar({
+        hanzi,
+        pinyin: "",
+        level: 0,
+        freq: 0,
+        // Honest component label instead of the generic placeholder.
+        meaningPrimary: componentLabelFor(hanzi),
+        meaningsRu: [],
+        meaningsEn: [],
+        hasStrokes: false,
+      });
+    }
     const related = ALL_CHARACTERS.filter(
       (ch) => ch.hanzi !== hanzi && (ch.components?.includes(hanzi) || ch.radical === hanzi)
     ).slice(0, 30);
     setRelatedChars(related);
+    setMobileSheetOpen(true);
   }, []);
+
+  /* Lock body scroll & close the sheet with Esc while the mobile sheet
+     is open — same behaviour as the dictionary detail sheet. */
+  useEffect(() => {
+    if (!mobileSheetOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileSheetOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [mobileSheetOpen]);
 
   const lookup = useCallback(() => {
     if (!matcherRef.current || !hlRef.current || strokesRef.current.length === 0) return;
@@ -76,27 +126,20 @@ export default function GraphemesPage() {
             score: maxScore > 0 ? Math.min(r.score / maxScore, 1) : 0,
           }));
         setMatches(normalized);
-        if (normalized.length > 0) {
-          const top = normalized[0].character;
-          const c = getChar(top);
-          if (c) selectCharFn(top);
-        }
+        // Intentionally do NOT auto-open the detail sheet here. We only
+        // surface candidate cards — the user picks one with a tap.
       });
     } catch {
       // ignore
     }
-  }, [selectCharFn]);
+  }, []);
 
   const searchByText = useCallback((q: string) => {
     setTextQuery(q);
     if (!q.trim()) {
       setSelectedChar(null);
       setRelatedChars([]);
-      return;
-    }
-    const ch = getChar(q.trim());
-    if (ch) {
-      selectCharFn(q.trim());
+      setMatches([]);
       return;
     }
     const lower = q.toLowerCase();
@@ -108,10 +151,22 @@ export default function GraphemesPage() {
         c.pinyin?.toLowerCase().includes(lower) ||
         meaningRu(c)?.toLowerCase().includes(lower)
     ).slice(0, 20);
-    if (found.length > 0) {
-      selectCharFn(found[0].hanzi);
-    }
-  }, [selectCharFn]);
+    // Surface matches as result cards but don't auto-open the sheet —
+    // the user explicitly taps a card. Score `1` is purely a visual
+    // placeholder; the cards don't show a percentage when score == 1.
+    setMatches(found.map((c) => ({ character: c.hanzi, score: 1 })));
+  }, []);
+
+  /* Reads the current ink colour from CSS — swaps between near-black
+     in light theme and cream in dark theme without re-renders. Falls
+     back to dark ink for the very first paint before tokens resolve. */
+  const inkColor = () => {
+    if (typeof window === "undefined") return "#1a1c18";
+    const v = getComputedStyle(document.documentElement)
+      .getPropertyValue("--ink")
+      .trim();
+    return v || "#1a1c18";
+  };
 
   const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -119,7 +174,7 @@ export default function GraphemesPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "#1a1c18";
+    ctx.strokeStyle = inkColor();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     for (const stroke of strokesRef.current) {
@@ -158,7 +213,7 @@ export default function GraphemesPage() {
     };
 
     const drawSegment = (from: number[], to: number[], speed: number) => {
-      ctx.strokeStyle = "#1a1c18";
+      ctx.strokeStyle = inkColor();
       ctx.lineWidth = Math.max(3, Math.min(8, 10 - speed * 0.3));
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
@@ -269,8 +324,8 @@ export default function GraphemesPage() {
     <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8">
       <header className="mb-8">
         <div className="flex items-center gap-3 mb-1.5">
-          <div className="w-10 h-10 rounded-xl bg-[var(--green-soft)] flex items-center justify-center">
-            <PenTool size={18} className="text-[var(--green)]" />
+          <div className="w-10 h-10 rounded-xl bg-[var(--surface-2)] flex items-center justify-center">
+            <PenTool size={18} className="text-[var(--foreground-muted)]" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-display font-medium">
             Поиск графем
@@ -369,36 +424,77 @@ export default function GraphemesPage() {
             />
           </div>
 
-          {/* Recognition results */}
+          {/* Recognition results.
+              Every card uses the same fixed slots (hanzi · pinyin · meaning ·
+              similarity %) so heights and baselines stay consistent, even
+              when the matched character is outside the HSK dataset and the
+              record is missing. The pinyin / meaning rows fall through to
+              `pinyinOf` / `bestMeaningOf`, which always return a string —
+              never an empty line. The matching radical / component is gently
+              highlighted in jade. */}
           {matches.length > 0 && (
             <div>
               <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)] mb-2 px-1">
                 Найдено ({matches.length})
               </div>
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {matches.map((m) => {
                   const c = getChar(m.character);
                   const active = selectedChar?.hanzi === m.character;
+                  const pinyin = pinyinOf(m.character);
+                  const meaning = displayMeaningOf(m.character);
+                  const similarity = Math.round(m.score * 100);
+                  const sharesRadical = !!(
+                    selectedChar &&
+                    c &&
+                    ((selectedChar.radical && selectedChar.radical === c.radical) ||
+                      (c.components &&
+                        selectedChar.components &&
+                        c.components.some((x) =>
+                          selectedChar.components!.includes(x)
+                        )))
+                  );
                   return (
                     <button
                       key={m.character}
                       type="button"
                       onClick={() => selectCharFn(m.character)}
+                      title={
+                        c
+                          ? `${m.character} · ${pinyin || "—"} · HSK ${c.level}\nЧерт: ${
+                              c.strokeToComponent?.length ?? "?"
+                            } · сходство ${similarity}%${
+                              sharesRadical && c.radical
+                                ? `\nОбщий ключ ${c.radical}`
+                                : ""
+                            }`
+                          : `${m.character} · сходство ${similarity}%`
+                      }
                       className={cn(
-                        "flex flex-col items-center gap-0.5 py-3 px-1 rounded-xl border transition-all",
+                        "flex flex-col items-stretch gap-0.5 pt-2.5 pb-2 px-1.5 rounded-xl border transition-all min-h-[96px] text-center group",
                         active
                           ? "border-[var(--green)] bg-[var(--green-soft)] shadow-sm"
+                          : sharesRadical
+                          ? "border-[var(--green)]/45 bg-[var(--green-soft)]/45 hover:shadow-sm"
                           : "border-[var(--border)] bg-white hover:shadow-sm hover:border-[var(--green)]/40"
                       )}
                     >
-                      <span className="hanzi text-2xl leading-none">{m.character}</span>
-                      {c && (
-                        <span className="text-[10px] text-[var(--foreground-muted)] truncate max-w-full px-1">
-                          {meaningRu(c) ? meaningRu(c)!.slice(0, 10) : c.pinyin}
-                        </span>
-                      )}
-                      <span className="text-[9px] text-[var(--foreground-soft)]">
-                        {Math.round(m.score * 100)}%
+                      <span
+                        className={cn(
+                          "hanzi text-2xl leading-none",
+                          active && "text-[var(--green-ink)]"
+                        )}
+                      >
+                        {m.character}
+                      </span>
+                      <span className="pinyin text-[10px] text-[var(--foreground-muted)] truncate px-1">
+                        {pinyin || "—"}
+                      </span>
+                      <span className="text-[10px] text-[var(--foreground-muted)] truncate px-1">
+                        {meaning}
+                      </span>
+                      <span className="text-[9px] text-[var(--foreground-soft)] tabular-nums mt-auto">
+                        {similarity}%{c ? ` · HSK ${c.level}` : ""}
                       </span>
                     </button>
                   );
@@ -408,8 +504,11 @@ export default function GraphemesPage() {
           )}
         </div>
 
-        {/* Right: Character details */}
-        <div>
+        {/* Right: Character details.
+            Hidden on small screens — on mobile, tapping a match opens a
+            bottom sheet (rendered below the grid) instead of pushing a
+            long detail block under the canvas. */}
+        <div className="hidden lg:block">
           {selectedChar ? (
             <div className="space-y-5 float-up">
               {/* Main character card */}
@@ -422,10 +521,13 @@ export default function GraphemesPage() {
                     </span>
                   </div>
                   <div className="flex-1 pt-2">
-                    <div className="text-xl sm:text-2xl font-medium leading-snug">
-                      {meaningRu(selectedChar) || selectedChar.meaningPrimary || "—"}
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--foreground-soft)] mb-0.5">
+                      Значение иероглифа
                     </div>
-                    {selectedChar.meaningsEn?.[0] && (
+                    <div className="text-xl sm:text-2xl font-medium leading-snug">
+                      {displayMeaningFull(selectedChar)}
+                    </div>
+                    {meaningRu(selectedChar) && selectedChar.meaningsEn?.[0] && (
                       <div className="text-sm text-[var(--foreground-muted)] mt-1">
                         {selectedChar.meaningsEn[0]}
                       </div>
@@ -463,25 +565,25 @@ export default function GraphemesPage() {
                   <div className="flex flex-wrap gap-2">
                     {selectedChar.components.map((comp, i) => {
                       const compChar = getChar(comp);
+                      const compPinyin = pinyinOf(comp);
+                      const compMeaning = compChar
+                        ? displayMeaning(compChar)
+                        : componentLabelFor(comp);
                       return (
                         <button
                           key={i}
                           type="button"
                           onClick={() => selectCharFn(comp)}
-                          className="card-soft px-4 py-3 flex items-center gap-3 hover:shadow-md transition-all rounded-xl active:scale-95"
+                          className="card-soft px-4 py-3 flex items-center gap-3 hover:shadow-md transition-all rounded-xl active:scale-95 min-h-[68px]"
                         >
-                          <span className="hanzi text-3xl">{comp}</span>
-                          <div className="text-left">
-                            {compChar && (
-                              <>
-                                <div className="text-xs text-[var(--foreground-muted)]">
-                                  {compChar.pinyin}
-                                </div>
-                                <div className="text-sm font-medium">
-                                  {meaningRu(compChar) || compChar.meaningPrimary || "—"}
-                                </div>
-                              </>
-                            )}
+                          <span className="hanzi text-3xl leading-none">{comp}</span>
+                          <div className="text-left min-w-[110px]">
+                            <div className="pinyin text-xs text-[var(--foreground-muted)]">
+                              {compPinyin || "—"}
+                            </div>
+                            <div className="text-sm font-medium leading-tight">
+                              {compMeaning}
+                            </div>
                           </div>
                         </button>
                       );
@@ -489,6 +591,51 @@ export default function GraphemesPage() {
                   </div>
                 </div>
               )}
+
+              {/* Confusion panel — «ne putayte». Shows visually similar
+                  characters from the curated confusion list so the user
+                  knows what to compare with. */}
+              {(() => {
+                const group = confusionGroupFor(selectedChar.hanzi);
+                if (!group || group.length < 2) return null;
+                return (
+                  <div>
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)] mb-3 px-1">
+                      Не путайте — похожие иероглифы
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {group.map((h) => {
+                        const cc = getChar(h);
+                        const isSelf = h === selectedChar.hanzi;
+                        return (
+                          <button
+                            key={h}
+                            type="button"
+                            onClick={() => !isSelf && selectCharFn(h)}
+                            disabled={isSelf}
+                            className={cn(
+                              "card-soft px-3.5 py-2.5 flex items-center gap-3 transition-all rounded-xl",
+                              isSelf
+                                ? "opacity-100 ring-1 ring-[var(--green)]/40 bg-[var(--green-soft)]/40 cursor-default"
+                                : "hover:shadow-md active:scale-95"
+                            )}
+                          >
+                            <span className="hanzi text-2xl">{h}</span>
+                            <div className="text-left text-xs">
+                              <div className="text-[var(--foreground-muted)]">
+                                {cc?.pinyin || pinyinOf(h) || "—"}
+                              </div>
+                              <div className="font-medium leading-tight">
+                                {displayMeaningOf(h)}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Related characters */}
               {relatedChars.length > 0 && (
@@ -502,14 +649,14 @@ export default function GraphemesPage() {
                         key={c.hanzi}
                         type="button"
                         onClick={() => selectCharFn(c.hanzi)}
-                        className="card-soft px-2 py-3 flex flex-col items-center gap-1 hover:shadow-md transition-all rounded-xl active:scale-95"
+                        className="card-soft px-2 pt-2.5 pb-2 flex flex-col items-center gap-0.5 hover:shadow-md transition-all rounded-xl active:scale-95 min-h-[88px] text-center"
                       >
-                        <span className="hanzi text-2xl">{c.hanzi}</span>
-                        <span className="pinyin text-[10px] text-[var(--foreground-muted)]">
-                          {c.pinyin}
+                        <span className="hanzi text-2xl leading-none">{c.hanzi}</span>
+                        <span className="pinyin text-[10px] text-[var(--foreground-muted)] truncate max-w-full px-1">
+                          {c.pinyin || "—"}
                         </span>
                         <span className="text-[10px] text-[var(--foreground-muted)] truncate max-w-full px-1">
-                          {meaningRu(c) || "—"}
+                          {displayMeaning(c)}
                         </span>
                       </button>
                     ))}
@@ -532,6 +679,206 @@ export default function GraphemesPage() {
           )}
         </div>
       </div>
+
+      {/* Mobile detail sheet.
+          Renders only on small viewports (`lg:hidden`). The detail panel
+          slides up from the bottom with a soft backdrop blur; the grab
+          handle can be dragged down to dismiss, mirroring the dictionary
+          detail sheet. We keep the desktop layout untouched. */}
+      {mobileSheetOpen && selectedChar && (
+        <div className="lg:hidden fixed inset-0 z-50 flex items-end">
+          {/* Backdrop */}
+          <motion.button
+            type="button"
+            aria-label="Закрыть"
+            className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onClick={() => setMobileSheetOpen(false)}
+          />
+          {/* Sheet */}
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Детали: ${selectedChar.hanzi}`}
+            className="relative w-full h-[90dvh] bg-[var(--surface)] rounded-t-3xl shadow-2xl border-t border-[var(--border)] overflow-hidden flex flex-col"
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 260, damping: 28 }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.4 }}
+            onDragEnd={(_e: unknown, info: PanInfo) => {
+              if (info.offset.y > 120 || info.velocity.y > 600) {
+                setMobileSheetOpen(false);
+              }
+            }}
+          >
+            {/* Grab handle */}
+            <div className="pt-2.5 pb-1.5 flex justify-center cursor-grab active:cursor-grabbing select-none">
+              <span className="block w-10 h-1 rounded-full bg-[var(--border)]" />
+            </div>
+            {/* Close button */}
+            <button
+              type="button"
+              aria-label="Закрыть"
+              onClick={() => setMobileSheetOpen(false)}
+              className="absolute top-2 right-3 w-9 h-9 rounded-xl flex items-center justify-center bg-[var(--surface-2)] text-[var(--foreground-muted)] hover:bg-[var(--surface-3)] active:scale-95 transition-all"
+            >
+              <X size={18} />
+            </button>
+            <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-1">
+              <div className="space-y-4">
+                {/* Main character card */}
+                <Card className="p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="flex flex-col items-center">
+                      <span className="hanzi text-7xl leading-none">{selectedChar.hanzi}</span>
+                      <span className="pinyin text-base text-[var(--foreground-muted)] mt-1.5">
+                        {selectedChar.pinyin || "—"}
+                      </span>
+                    </div>
+                    <div className="flex-1 pt-1">
+                      <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--foreground-soft)] mb-0.5">
+                        Значение
+                      </div>
+                      <div className="text-lg font-medium leading-snug">
+                        {displayMeaningFull(selectedChar)}
+                      </div>
+                      {meaningRu(selectedChar) && selectedChar.meaningsEn?.[0] && (
+                        <div className="text-sm text-[var(--foreground-muted)] mt-1">
+                          {selectedChar.meaningsEn[0]}
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-[var(--green-soft)] text-xs text-[var(--green)] font-medium">
+                          HSK {selectedChar.level || "—"}
+                        </span>
+                        {selectedChar.radical && (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-[var(--surface-2)] text-xs text-[var(--foreground-muted)]">
+                            Ключ: {selectedChar.radical}
+                          </span>
+                        )}
+                      </div>
+                      {selectedChar.etymology && (
+                        <p className="text-sm text-[var(--foreground-muted)] mt-3 leading-relaxed italic">
+                          {selectedChar.etymology}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+
+                {selectedChar.components && selectedChar.components.length > 0 && (
+                  <div>
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)] mb-2 px-1">
+                      Составные графемы
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedChar.components.map((comp, i) => {
+                        const compChar = getChar(comp);
+                        const compPinyin = pinyinOf(comp);
+                        const compMeaning = compChar
+                          ? displayMeaning(compChar)
+                          : componentLabelFor(comp);
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => selectCharFn(comp)}
+                            className="card-soft px-3 py-2 flex items-center gap-2.5 hover:shadow-md transition-all rounded-xl active:scale-95"
+                          >
+                            <span className="hanzi text-2xl leading-none">{comp}</span>
+                            <div className="text-left min-w-[90px]">
+                              <div className="pinyin text-[11px] text-[var(--foreground-muted)]">
+                                {compPinyin || "—"}
+                              </div>
+                              <div className="text-xs font-medium leading-tight">
+                                {compMeaning}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {(() => {
+                  const group = confusionGroupFor(selectedChar.hanzi);
+                  if (!group || group.length < 2) return null;
+                  return (
+                    <div>
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)] mb-2 px-1">
+                        Не путайте
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {group.map((h) => {
+                          const cc = getChar(h);
+                          const isSelf = h === selectedChar.hanzi;
+                          return (
+                            <button
+                              key={h}
+                              type="button"
+                              onClick={() => !isSelf && selectCharFn(h)}
+                              disabled={isSelf}
+                              className={cn(
+                                "card-soft px-3 py-2 flex items-center gap-2.5 transition-all rounded-xl",
+                                isSelf
+                                  ? "opacity-100 ring-1 ring-[var(--green)]/40 bg-[var(--green-soft)]/40 cursor-default"
+                                  : "hover:shadow-md active:scale-95"
+                              )}
+                            >
+                              <span className="hanzi text-xl">{h}</span>
+                              <div className="text-left text-xs">
+                                <div className="text-[var(--foreground-muted)]">
+                                  {cc?.pinyin || pinyinOf(h) || "—"}
+                                </div>
+                                <div className="font-medium leading-tight">
+                                  {displayMeaningOf(h)}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {relatedChars.length > 0 && (
+                  <div>
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-[var(--foreground-soft)] mb-2 px-1">
+                      Иероглифы с этой графемой ({relatedChars.length})
+                    </div>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                      {relatedChars.map((c) => (
+                        <button
+                          key={c.hanzi}
+                          type="button"
+                          onClick={() => selectCharFn(c.hanzi)}
+                          className="card-soft px-2 pt-2 pb-2 flex flex-col items-center gap-0.5 hover:shadow-md transition-all rounded-xl active:scale-95 min-h-[80px] text-center"
+                        >
+                          <span className="hanzi text-2xl leading-none">{c.hanzi}</span>
+                          <span className="pinyin text-[10px] text-[var(--foreground-muted)] truncate max-w-full px-1">
+                            {c.pinyin || "—"}
+                          </span>
+                          <span className="text-[10px] text-[var(--foreground-muted)] truncate max-w-full px-1">
+                            {displayMeaning(c)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

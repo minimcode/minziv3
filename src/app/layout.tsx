@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Cormorant_Garamond, Ma_Shan_Zheng } from "next/font/google";
 import { Providers } from "@/components/Providers";
+import { AppLoader } from "@/components/ui/AppLoader";
 import "./globals.css";
 
 const inter = Inter({
@@ -52,6 +53,35 @@ export const viewport: Viewport = {
   themeColor: "#c43a3a",
 };
 
+// Pre-hydration theme script. Runs synchronously before paint to set
+// `html.theme-dark` based on the user's saved preference + system pref.
+// This avoids a flash-of-light theme on first load. Kept minimal — the
+// React-side <ThemeToggle> updates the same class.
+const THEME_INIT_SCRIPT = `
+(function() {
+  try {
+    var saved = localStorage.getItem("minzi-theme");
+    var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var isDark = saved === "dark" || ((saved === "system" || !saved) && prefersDark);
+    var html = document.documentElement;
+    if (isDark) html.classList.add("theme-dark");
+    else html.classList.remove("theme-dark");
+    // When in "system" mode, keep responding to OS changes.
+    if (saved === "system" || !saved) {
+      var m = window.matchMedia("(prefers-color-scheme: dark)");
+      var fn = function(e) {
+        var cur = localStorage.getItem("minzi-theme");
+        if (cur === "system" || !cur) {
+          html.classList.toggle("theme-dark", e.matches);
+        }
+      };
+      if (m.addEventListener) m.addEventListener("change", fn);
+      else m.addListener(fn);
+    }
+  } catch (_) { /* localStorage blocked, no-op */ }
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -59,8 +89,16 @@ export default function RootLayout({
     <html
       lang="ru"
       className={`${inter.variable} ${cormorant.variable} ${maShanZheng.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <script
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
+        />
+      </head>
       <body className="min-h-full bg-rice">
+        <AppLoader />
         <Providers>{children}</Providers>
       </body>
     </html>

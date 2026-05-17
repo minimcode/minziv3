@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
+import { useThemeTokens } from "@/lib/useThemeTokens";
 import { RotateCcw } from "lucide-react";
 
 interface Props {
@@ -61,6 +62,14 @@ export function WritingQuiz({
       : "Напишите по памяти."
   );
 
+  // Tokenised stroke colors so the canvas adapts to dark mode.
+  const t = useThemeTokens([
+    "--stroke-default",
+    "--stroke-outline",
+    "--stroke-hint",
+    "--stroke-correct",
+  ]);
+
   const onCompleteRef = useRef(onComplete);
   const onMistakeRef = useRef(onMistake);
   const onCorrectStrokeRef = useRef(onCorrectStroke);
@@ -89,10 +98,10 @@ export function WritingQuiz({
           // After 2 misses Hanzi Writer highlights the correct stroke as a
           // hint; we render that hint in jade-green so it's unambiguously
           // visible against the dark ink character.
-          strokeColor: "#1A1814",
-          outlineColor: "#e6e3da",
-          drawingColor: "#9ca09a",
-          highlightColor: "#2e7d4f",
+          strokeColor: t["--stroke-default"] || "#1A1814",
+          outlineColor: t["--stroke-outline"] || "#e6e3da",
+          drawingColor: t["--stroke-hint"] || "#9ca09a",
+          highlightColor: t["--stroke-correct"] || "#2e7d4f",
           highlightOnComplete: false,
           // Per §7 of the spec: stroke 2 misses → dotted guide; stroke
           // 3 misses → ghost outline. Hanzi Writer surfaces both via the
@@ -154,7 +163,9 @@ export function WritingQuiz({
       cancelled = true;
       writerRef.current?.cancelQuiz?.();
     };
-  }, [hanzi, size, showOutline]);
+    // Re-create when the theme tokens flip (dark <-> light) so the
+    // strokes match the new substrate.
+  }, [hanzi, size, showOutline, t]);
 
   const restart = useCallback(() => {
     if (containerRef.current) containerRef.current.innerHTML = "";

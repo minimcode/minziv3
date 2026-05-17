@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CharRecord, getChar, meaningShort } from "@/lib/characters";
+import { CharRecord, getChar, bestMeaning } from "@/lib/characters";
 import { cn } from "@/lib/cn";
 
 interface Props {
@@ -43,7 +43,7 @@ export function Graphemes({ char, selectedIndex, onSelect }: Props) {
       <div className="flex flex-wrap items-stretch justify-center gap-2">
         {char.components.map((g, i) => {
           const sub = getChar(g);
-          const meaning = sub ? meaningShort(sub) : "";
+          const meaning = sub ? bestMeaning(sub) : "";
           const isPicked = picked === i;
           return (
             <button
@@ -51,7 +51,7 @@ export function Graphemes({ char, selectedIndex, onSelect }: Props) {
               type="button"
               onClick={() => handlePick(i)}
               className={cn(
-                "border rounded-md px-3 py-2 flex items-center gap-2 transition-colors min-w-0",
+                "border rounded-md px-3 py-2 flex items-center gap-2 transition-colors min-w-0 min-h-[44px]",
                 isPicked
                   ? "border-[var(--green)] bg-[var(--green-soft)]"
                   : "border-[var(--border)] bg-white hover:bg-[var(--surface-2)]"

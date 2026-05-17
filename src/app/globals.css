@@ -3,16 +3,16 @@
 /* ─── Design tokens ────────────────────────────────────────────────────── */
 
 :root {
-  /* Surface */
-  --background: #f8f7f4;     /* warm off-white, like rice paper */
-  --surface: #ffffff;
-  --surface-2: #f3f2ee;
-  --surface-3: #ebe9e3;
-  --foreground: #1f211e;
-  --foreground-muted: #6a6e69;
-  --foreground-soft: #9ca09a;
-  --border: #e3e1da;
-  --border-strong: #c9c6bd;
+  /* Surface — neutrals tinted toward brand green (oklch hue ~145) */
+  --background: #f7f8f5;
+  --surface: #fdfdfb;
+  --surface-2: #f1f3ee;
+  --surface-3: #e8ebe4;
+  --foreground: #1c231e;
+  --foreground-muted: #5f6b5e;
+  --foreground-soft: #8d9889;
+  --border: #dde2d8;
+  --border-strong: #c4cbbe;
 
   /* Brand */
   --green: #2e7d4f;          /* primary — progress, success */
@@ -46,13 +46,13 @@
     0 2px 4px -2px rgba(20, 22, 18, 0.06);
   --shadow-lg: 0 18px 40px -16px rgba(20, 22, 18, 0.24),
     0 6px 14px -10px rgba(20, 22, 18, 0.10);
-  --shadow-card: 0 1px 0 rgba(255,255,255,0.6) inset,
-    0 8px 22px -14px rgba(31, 33, 30, 0.18),
-    0 1px 2px rgba(31, 33, 30, 0.04);
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 22px;
-  --radius-xl: 32px;
+  --shadow-card: 0 1px 0 rgba(255,255,255,0.5) inset,
+    0 6px 18px -12px rgba(28, 35, 30, 0.16),
+    0 1px 2px rgba(28, 35, 30, 0.04);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
 }
 
 @theme inline {
@@ -110,11 +110,8 @@ body {
 .bg-rice {
   background-color: var(--background);
   background-image:
-    radial-gradient(1200px 600px at 80% -10%, rgba(218, 100, 80, 0.06), transparent 60%),
-    radial-gradient(900px 700px at -10% 30%, rgba(46, 125, 79, 0.05), transparent 60%),
-    radial-gradient(rgba(0,0,0,0.025) 1px, transparent 1px);
-  background-size: auto, auto, 18px 18px;
-  background-position: 0 0, 0 0, 0 0;
+    radial-gradient(1000px 500px at 75% -5%, oklch(0.85 0.03 145 / 0.06), transparent 60%),
+    radial-gradient(800px 600px at -5% 25%, oklch(0.70 0.04 145 / 0.04), transparent 55%);
 }
 
 .ink-divider {
@@ -151,7 +148,7 @@ body {
   justify-content: center;
   gap: 0.5rem;
   font-weight: 500;
-  border-radius: 14px;
+  border-radius: 10px;
   padding: 0.75rem 1.25rem;
   transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, color 120ms ease;
   border: 1px solid transparent;
@@ -250,9 +247,9 @@ body {
 
 @keyframes gentle-float {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+  50% { transform: translateY(-4px); }
 }
-.animate-float { animation: gentle-float 4s ease-in-out infinite; }
+.animate-float { animation: gentle-float 5s cubic-bezier(0.37, 0, 0.63, 1) infinite; }
 
 @keyframes shimmer {
   0% { background-position: -200% 0; }
@@ -275,33 +272,25 @@ body {
 }
 .animate-fade-in-up { animation: fade-in-up 600ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 
-@keyframes typewriter-cursor {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-.typewriter-cursor::after {
-  content: "|";
-  animation: typewriter-cursor 1s step-end infinite;
-  color: var(--green);
-  font-weight: 300;
+/* Accent mark on brand text — static, no animation */
+.brand-accent {
+  color: var(--green-deep);
 }
 
-/* Glass card */
+/* Solid surface card — no glass/blur */
 .glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, var(--shadow-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
 }
 
-/* Feature card hover lift */
+/* Subtle interaction lift */
 .hover-lift {
-  transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 300ms ease;
+  transition: transform 200ms cubic-bezier(0.33, 1, 0.68, 1), box-shadow 200ms ease;
 }
 .hover-lift:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 /* ─── PWA safe area ─────────────────────────────────────────────────────
