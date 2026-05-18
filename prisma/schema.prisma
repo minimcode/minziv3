@@ -1,0 +1,148 @@
+// Minzi — Prisma schema
+// Persists user identity (Auth.js) and per-character SRS progress.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth.js (NextAuth v5) standard tables ──────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  username      String?   @unique
+  bio           String?
+
+  accounts        Account[]
+  sessions        Session[]
+  characterStates CharacterState[]
+  reviews         ReviewLog[]
+  profile         UserProfile?
+  friends         Friendship[] @relation("UserFriends")
+  friendOf        Friendship[] @relation("FriendOf")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── App data ───────────────────────────────────────────────────────────────
+
+// User-tunable learning goals & preferences.
+model UserProfile {
+  id            String  @id @default(cuid())
+  userId        String  @unique
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level         String  @default("HSK1")    // HSK1..HSK6
+  dailyGoal     Int     @default(20)         // characters per day
+  dailyMinutes  Int     @default(15)         // minutes per day
+  streakCount   Int     @default(0)
+  streakUpdated DateTime?
+  // Synced from the client-side progress store. SQLite has no JSON type
+  // so these are stringified JSON arrays of the same shapes used in
+  // src/store/progress.ts (CompletedLessonIds: string[], Daily: DailyEntry[]).
+  completedLessons String?
+  dailyJson        String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Per-(user, character) SRS state. Hanzi is the natural key.
+model CharacterState {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hanzi     String
+  // SRS — simplified SM-2-style
+  ease      Float   @default(2.5)
+  interval  Int     @default(0)        // days
+  reps      Int     @default(0)
+  lapses    Int     @default(0)
+  due       DateTime @default(now())
+  // Quality metrics
+  accuracy  Float   @default(0)         // rolling 0..1
+  attempts  Int     @default(0)
+  correct   Int     @default(0)
+  // Engagement
+  favorite  Boolean @default(false)
+  status    String  @default("new")     // new | learning | known | weak
+  lastSeen  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, hanzi])
+  @@index([userId, due])
+}
+
+// Review history entries — useful for stats / activity heatmap.
+model ReviewLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hanzi     String
+  outcome   String   // again | hard | good | easy
+  kind      String   // intro | guided | recall | writing
+  durationMs Int     @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// ─── Friends ────────────────────────────────────────────────────────────────
+
+model Friendship {
+  id        String   @id @default(cuid())
+  userId    String
+  friendId  String
+  user      User     @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
+  friend    User     @relation("FriendOf", fields: [friendId], references: [id], onDelete: Cascade)
+  status    String   @default("pending") // pending | accepted
+  createdAt DateTime @default(now())
+
+  @@unique([userId, friendId])
+  @@index([friendId])
+}
