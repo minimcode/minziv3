@@ -6,13 +6,22 @@ import { ArrowRight } from "lucide-react";
 export function Hero() {
   return (
     <section className="relative overflow-hidden">
+      {/* Bamboo on the LEFT edge of the hero — soft fade towards the centre. */}
+      <Image
+        src="/bg/bg_bamboo_hero_left.png"
+        alt=""
+        width={1660}
+        height={930}
+        className="absolute left-[-220px] top-[-40px] w-[640px] lg:w-[780px] opacity-65 pointer-events-none select-none hidden md:block z-0 [mask-image:radial-gradient(ellipse_at_top_left,black_35%,transparent_85%)] [-webkit-mask-image:radial-gradient(ellipse_at_top_left,black_35%,transparent_85%)]"
+        priority={false}
+      />
       {/* Subtle bamboo branch on the right edge of the hero — clean asset. */}
       <Image
         src="/bg/bg_bamboo_top_right.png"
         alt=""
         width={1660}
         height={930}
-        className="absolute right-[-160px] top-[-40px] w-[640px] lg:w-[780px] opacity-70 pointer-events-none select-none hidden md:block z-0"
+        className="absolute right-[-160px] top-[-40px] w-[640px] lg:w-[780px] opacity-70 pointer-events-none select-none hidden md:block z-0 [mask-image:radial-gradient(ellipse_at_top_right,black_35%,transparent_85%)] [-webkit-mask-image:radial-gradient(ellipse_at_top_right,black_35%,transparent_85%)]"
         priority={false}
       />
 

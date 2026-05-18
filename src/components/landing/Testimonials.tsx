@@ -21,13 +21,13 @@ const REVIEWS: { name: string; sub: string; body: string }[] = [
 export function Testimonials() {
   return (
     <section id="testimonials" className="relative overflow-hidden py-16 sm:py-24">
-      {/* Ink-wash mountains decoration on the left */}
+      {/* Ink-wash mountains decoration on the left — fades toward the centre. */}
       <Image
         src="/bg/bg_mist_pine.png"
         alt=""
         width={520}
         height={520}
-        className="absolute left-[-80px] bottom-[-40px] w-[340px] lg:w-[420px] opacity-55 pointer-events-none select-none hidden md:block"
+        className="absolute left-[-80px] bottom-[-40px] w-[340px] lg:w-[420px] opacity-55 pointer-events-none select-none hidden md:block [mask-image:radial-gradient(ellipse_at_bottom_left,black_30%,transparent_85%)] [-webkit-mask-image:radial-gradient(ellipse_at_bottom_left,black_30%,transparent_85%)]"
       />
 
       <div className="relative max-w-[1180px] mx-auto px-5 sm:px-8 lg:px-12">
