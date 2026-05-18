@@ -30,39 +30,42 @@ export function Testimonials() {
         className="absolute left-[-80px] bottom-[-40px] w-[340px] lg:w-[420px] opacity-55 pointer-events-none select-none hidden md:block"
       />
 
-      <div className="relative max-w-[1280px] mx-auto px-5 sm:px-8 lg:px-12 grid grid-cols-1 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.5fr)] gap-12 lg:gap-16 items-start">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.3em] text-[var(--foreground-soft)] mb-4 font-medium">
+      <div className="relative max-w-[1180px] mx-auto px-5 sm:px-8 lg:px-12">
+        <div className="max-w-[640px] mb-10 sm:mb-12">
+          <div className="text-[11px] uppercase tracking-[0.3em] text-[var(--foreground-soft)] mb-3 font-medium">
             Отзывы
           </div>
           <h2 className="font-display font-medium tracking-[-0.02em] leading-[1.08] text-[2.1rem] sm:text-[2.4rem] lg:text-[2.6rem]">
-            Что говорят
-            <br />
-            ученики
+            Что говорят ученики
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {REVIEWS.map((r, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {REVIEWS.map((r) => (
             <figure
               key={r.name}
-              className={`rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 flex flex-col gap-5 transition-colors duration-150 hover:bg-[var(--surface-2)] ${i === 0 ? "md:row-span-2" : ""}`}
+              className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 flex flex-col gap-4 transition-colors duration-150 hover:bg-[var(--surface-2)]"
             >
               <span
                 aria-hidden
-                className="font-display text-[3rem] leading-none text-[var(--foreground-soft)]/55 -mb-3"
+                className="font-display text-[2.4rem] leading-none text-[var(--foreground-soft)]/55 -mb-2"
               >
                 &ldquo;
               </span>
-              <blockquote className="text-[14.5px] text-[var(--foreground)] leading-[1.65] flex-1">
+              <blockquote className="text-[14px] text-[var(--foreground)] leading-[1.6] flex-1">
                 {r.body}
               </blockquote>
-              <figcaption className="mt-1">
-                <div className="font-medium text-[14px] text-[var(--foreground)]">
-                  {r.name}
+              <figcaption className="flex items-center gap-3 pt-3 border-t border-[var(--border)]/70">
+                <div className="h-9 w-9 rounded-full bg-[var(--green-soft)] border border-[var(--border)] flex items-center justify-center text-[13px] font-medium text-[var(--green-deep)] shrink-0">
+                  {r.name[0]}
                 </div>
-                <div className="text-[12.5px] text-[var(--foreground-muted)] mt-0.5">
-                  {r.sub}
+                <div className="min-w-0">
+                  <div className="font-medium text-[13.5px] text-[var(--foreground)] truncate">
+                    {r.name}
+                  </div>
+                  <div className="text-[12px] text-[var(--foreground-muted)] mt-0.5 truncate">
+                    {r.sub}
+                  </div>
                 </div>
               </figcaption>
             </figure>

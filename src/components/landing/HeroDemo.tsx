@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { StrokeAnimation } from "@/components/learn/StrokeAnimation";
 import { Card } from "@/components/ui/Card";
-import { ArrowRight, RotateCcw, Play, Volume2, Lightbulb } from "lucide-react";
+import { ArrowRight, Volume2, Lightbulb } from "lucide-react";
 
 // Stage names used on the lesson runner, per §8 of the Minzi spec.
 const STAGE = "Обведите";
@@ -14,6 +14,10 @@ export function HeroDemo() {
 
   return (
     <div className="relative w-full max-w-[640px] mx-auto">
+      {/* Phone mockup tucked behind and to the right of the desktop card,
+          peeking out so a thin strip of device + content is visible. */}
+      <PhoneMockup className="hidden md:block absolute z-0 right-[-46px] lg:right-[-58px] top-6 lg:top-10 w-[150px] lg:w-[170px] rotate-[4deg]" />
+
       {/* Desktop lesson card */}
       <Card className="relative z-10 p-6 sm:p-7 bg-[var(--surface)]">
         <div className="flex items-center justify-between mb-5">
@@ -28,16 +32,17 @@ export function HeroDemo() {
           </button>
         </div>
 
-        <div className="grid grid-cols-[1fr_minmax(0,200px)] items-start gap-6">
-          <div className="cali-grid border border-[var(--border)] rounded-xl bg-[var(--surface)]">
-            <StrokeAnimation
-              hanzi="你"
-              size={240}
-              autoplay
-              onReady={(n) => setStrokeCount(n || STROKE_COUNT)}
-            />
-          </div>
-          <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-[minmax(0,260px)_1fr] items-start gap-6">
+          {/* StrokeAnimation already provides its own calligraphy grid AND
+              replay/play controls. Do NOT wrap it in another grid/border —
+              that would duplicate borders + duplicate the buttons below. */}
+          <StrokeAnimation
+            hanzi="你"
+            size={220}
+            autoplay
+            onReady={(n) => setStrokeCount(n || STROKE_COUNT)}
+          />
+          <div className="flex flex-col gap-3 pt-1">
             <div>
               <div className="pinyin text-[28px] font-display tracking-tight leading-none text-[var(--foreground)]">
                 nǐ
@@ -80,29 +85,12 @@ export function HeroDemo() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between mt-5">
-          <div className="flex items-center gap-2">
-            <button
-              className="h-9 w-9 rounded-full border border-[var(--border)] flex items-center justify-center text-[var(--foreground-muted)] hover:bg-[var(--surface-2)] transition-colors"
-              aria-label="Сначала"
-            >
-              <RotateCcw size={14} strokeWidth={1.7} />
-            </button>
-            <button
-              className="h-9 w-9 rounded-full border border-[var(--border)] flex items-center justify-center text-[var(--foreground-muted)] hover:bg-[var(--surface-2)] transition-colors"
-              aria-label="Воспроизвести"
-            >
-              <Play size={13} strokeWidth={1.7} />
-            </button>
-          </div>
+        <div className="flex items-center justify-end mt-5">
           <button className="btn btn-primary h-11 px-6 text-[14px]">
             Далее <ArrowRight size={14} />
           </button>
         </div>
       </Card>
-
-      {/* Phone mockup tucked behind the desktop card on the right */}
-      <PhoneMockup className="hidden md:block absolute z-0 -right-2 lg:-right-6 -bottom-12 w-[180px] lg:w-[210px] rotate-[3deg]" />
     </div>
   );
 }
@@ -136,21 +124,7 @@ function PhoneMockup({ className }: { className?: string }) {
             <div className="text-[9px] text-[var(--green-deep)] mt-1">ты, вы</div>
           </div>
 
-          <div className="mt-1.5 flex-1 flex flex-col">
-            <div className="text-[7px] text-[var(--foreground-muted)] mb-1">
-              Порядок черт
-            </div>
-            <div className="flex gap-0.5 flex-wrap">
-              {Array.from({ length: 7 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-3 w-3 rounded-full flex items-center justify-center text-[6px] font-medium border border-[var(--border)] text-[var(--foreground-muted)]"
-                >
-                  {i + 1}
-                </div>
-              ))}
-            </div>
-          </div>
+          <div className="mt-1.5 flex-1" />
 
           <div className="mt-1.5 h-7 rounded-md bg-[var(--red)] text-white flex items-center justify-center text-[9px] font-medium">
             Далее →

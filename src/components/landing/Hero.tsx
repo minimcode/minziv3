@@ -6,22 +6,13 @@ import { ArrowRight } from "lucide-react";
 export function Hero() {
   return (
     <section className="relative overflow-hidden">
-      {/* Subtle bamboo branch on the right edge of the hero */}
+      {/* Subtle bamboo branch on the right edge of the hero — clean asset. */}
       <Image
-        src="/bg/bg_bamboo_branch.png"
+        src="/bg/bg_bamboo_top_right.png"
         alt=""
-        width={520}
-        height={520}
-        className="absolute right-[-90px] top-[6%] w-[360px] lg:w-[440px] opacity-50 pointer-events-none select-none hidden md:block z-0"
-        priority={false}
-      />
-      {/* Ink-wash mountains in the bottom-left corner */}
-      <Image
-        src="/bg/bg_mist_pine.png"
-        alt=""
-        width={520}
-        height={360}
-        className="absolute left-[-30px] bottom-[-20px] w-[300px] lg:w-[420px] opacity-50 pointer-events-none select-none hidden md:block z-0"
+        width={1660}
+        height={930}
+        className="absolute right-[-160px] top-[-40px] w-[640px] lg:w-[780px] opacity-70 pointer-events-none select-none hidden md:block z-0"
         priority={false}
       />
 
