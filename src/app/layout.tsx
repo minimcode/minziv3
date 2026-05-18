@@ -60,19 +60,25 @@ export const viewport: Viewport = {
 const THEME_INIT_SCRIPT = `
 (function() {
   try {
+    var path = window.location.pathname;
+    // The marketing landing at "/" is always served in the light palette,
+    // regardless of the saved preference. Dark mode is scoped to the
+    // signed-in product surface only.
+    var isLanding = path === "/" || path === "";
     var saved = localStorage.getItem("minzi-theme");
     var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    var isDark = saved === "dark" || ((saved === "system" || !saved) && prefersDark);
+    var isDark = !isLanding && (saved === "dark" || ((saved === "system" || !saved) && prefersDark));
     var html = document.documentElement;
     if (isDark) html.classList.add("theme-dark");
     else html.classList.remove("theme-dark");
-    // When in "system" mode, keep responding to OS changes.
+    // When in "system" mode, keep responding to OS changes (still respecting landing).
     if (saved === "system" || !saved) {
       var m = window.matchMedia("(prefers-color-scheme: dark)");
       var fn = function(e) {
         var cur = localStorage.getItem("minzi-theme");
+        var stillLanding = window.location.pathname === "/" || window.location.pathname === "";
         if (cur === "system" || !cur) {
-          html.classList.toggle("theme-dark", e.matches);
+          html.classList.toggle("theme-dark", e.matches && !stillLanding);
         }
       };
       if (m.addEventListener) m.addEventListener("change", fn);

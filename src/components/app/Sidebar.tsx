@@ -82,10 +82,10 @@ export function Sidebar() {
         {/* Small panda flair */}
         <div className="flex justify-center -mb-2 pointer-events-none">
           <Image
-            src="/panda/panda_studying.png"
+            src="/panda/reading_for_web.png"
             alt=""
-            width={120}
-            height={120}
+            width={140}
+            height={140}
             className="select-none"
           />
         </div>
