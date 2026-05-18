@@ -14,10 +14,6 @@ export function HeroDemo() {
 
   return (
     <div className="relative w-full max-w-[640px] mx-auto">
-      {/* Phone mockup tucked behind and to the right of the desktop card,
-          peeking out so a thin strip of device + content is visible. */}
-      <PhoneMockup className="hidden md:block absolute z-0 right-[-46px] lg:right-[-58px] top-6 lg:top-10 w-[150px] lg:w-[170px] rotate-[4deg]" />
-
       {/* Desktop lesson card */}
       <Card className="relative z-10 p-6 sm:p-7 bg-[var(--surface)]">
         <div className="flex items-center justify-between mb-5">
@@ -91,6 +87,11 @@ export function HeroDemo() {
           </button>
         </div>
       </Card>
+
+      {/* Phone mockup sits ON TOP of the card on the right, overlapping the
+          card edge a bit so it reads as a stack rather than two separate
+          elements. */}
+      <PhoneMockup className="hidden md:block absolute z-20 right-[-30px] lg:right-[-50px] top-12 lg:top-16 w-[150px] lg:w-[170px] rotate-[5deg]" />
     </div>
   );
 }
