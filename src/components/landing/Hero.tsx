@@ -6,33 +6,44 @@ import { ArrowRight } from "lucide-react";
 export function Hero() {
   return (
     <section className="relative overflow-hidden">
+      {/* Subtle bamboo branch on the right edge of the hero */}
       <Image
-        src="/bamboo/bamboo_2.png"
+        src="/bg/bg_bamboo_branch.png"
         alt=""
-        width={120}
-        height={300}
-        className="absolute -left-4 top-[12%] w-20 opacity-[0.07] hidden lg:block pointer-events-none select-none"
+        width={520}
+        height={520}
+        className="absolute right-[-90px] top-[6%] w-[360px] lg:w-[440px] opacity-50 pointer-events-none select-none hidden md:block z-0"
+        priority={false}
+      />
+      {/* Ink-wash mountains in the bottom-left corner */}
+      <Image
+        src="/bg/bg_mist_pine.png"
+        alt=""
+        width={520}
+        height={360}
+        className="absolute left-[-30px] bottom-[-20px] w-[300px] lg:w-[420px] opacity-50 pointer-events-none select-none hidden md:block z-0"
+        priority={false}
       />
 
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10 py-14 sm:py-20 lg:py-24 grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-10 lg:gap-16 items-center">
+      <div className="relative z-10 max-w-[1280px] mx-auto px-5 sm:px-8 lg:px-12 pt-14 pb-20 sm:pt-20 sm:pb-28 lg:pt-24 lg:pb-32 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] gap-12 lg:gap-16 items-center">
         <div className="animate-fade-in-up">
-          <div className="text-[11px] uppercase tracking-[0.25em] text-[var(--foreground-soft)] mb-4 font-medium">
+          <div className="text-[11px] uppercase tracking-[0.3em] text-[var(--foreground-soft)] mb-5 font-medium">
             пишите &middot; понимайте &middot; запоминайте
           </div>
-          <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] font-display font-medium tracking-[-0.025em] leading-[1.08]">
+          <h1 className="font-display font-medium tracking-[-0.02em] leading-[1.05] text-[2.6rem] sm:text-[3.1rem] lg:text-[3.6rem]">
             Учите иероглифы
             <br />
             через письмо.
             <br />
-            <span className="text-[var(--green-deep)]">
+            <span className="text-[var(--green-deep)] italic">
               Запоминайте надолго
             </span>
           </h1>
-          <p className="mt-6 text-[var(--foreground-muted)] max-w-md text-[15px] leading-[1.65]">
-            Правильный порядок черт, активная практика и умные повторения,
-            чтобы знания остались с вами.
+          <p className="mt-6 text-[var(--foreground-muted)] max-w-[480px] text-[15.5px] leading-[1.65]">
+            Minzi помогает освоить китайские иероглифы с помощью активного
+            письма, умных повторений и контекстных примеров.
           </p>
-          <div className="mt-7 flex items-center gap-3 flex-wrap">
+          <div className="mt-8 flex items-center gap-5 flex-wrap">
             <Link
               href="/learn"
               className="btn btn-primary h-12 px-7 text-[15px] relative overflow-hidden group"
@@ -46,28 +57,38 @@ export function Hero() {
               </span>
               <span className="absolute inset-0 animate-shimmer pointer-events-none" />
             </Link>
-          </div>
-          <div className="mt-7 flex items-center gap-3">
-            <div className="flex -space-x-2">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div
-                  key={i}
-                  className="h-8 w-8 rounded-full border-2 border-[var(--background)] bg-[var(--surface-3)]"
-                />
-              ))}
-            </div>
-            <div className="text-sm text-[var(--foreground-muted)]">
-              <span className="font-medium text-[var(--foreground)]">
-                12 000+
-              </span>{" "}
-              учеников
+            <div className="flex items-center gap-3">
+              <div className="flex -space-x-2">
+                {AVATARS.map((a, i) => (
+                  <div
+                    key={i}
+                    className="h-8 w-8 rounded-full border-2 border-[var(--background)] flex items-center justify-center text-[10px] font-medium text-white"
+                    style={{ background: a.bg }}
+                  >
+                    {a.initial}
+                  </div>
+                ))}
+              </div>
+              <div className="text-[13.5px] leading-tight text-[var(--foreground-muted)]">
+                <div className="font-medium text-[var(--foreground)]">
+                  12 000+ учеников
+                </div>
+                <div className="text-[var(--foreground-soft)]">уже с нами</div>
+              </div>
             </div>
           </div>
         </div>
-        <div className="relative animate-float">
+        <div className="relative">
           <HeroDemo />
         </div>
       </div>
     </section>
   );
 }
+
+const AVATARS: { initial: string; bg: string }[] = [
+  { initial: "А", bg: "#a8b89a" },
+  { initial: "Д", bg: "#c4805a" },
+  { initial: "М", bg: "#7f9b8d" },
+  { initial: "Е", bg: "#b48a6a" },
+];

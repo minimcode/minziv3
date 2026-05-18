@@ -1,82 +1,80 @@
-import Image from "next/image";
-import { Brain, Eye, CalendarDays, Sprout } from "lucide-react";
+import {
+  BrainCircuit,
+  CalendarClock,
+  MessagesSquare,
+  CheckCircle2,
+  ArrowUpRight,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import Link from "next/link";
 
-const ITEMS = [
+const PILLARS: { icon: LucideIcon; title: string; body: string }[] = [
   {
-    icon: Brain,
-    title: "Вы пишете",
-    body: "Движение рукой активирует моторную память.",
+    icon: BrainCircuit,
+    title: "Активное воспроизведение",
+    body: "Письмо активирует больше областей мозга, чем пассивное чтение.",
   },
   {
-    icon: Eye,
-    title: "Вы видите",
-    body: "Визуальное восприятие помогает запомнить образ.",
+    icon: CalendarClock,
+    title: "Интервальное повторение",
+    body: "Алгоритм подбирает идеальное время для повторения.",
   },
   {
-    icon: CalendarDays,
-    title: "Вы повторяете",
-    body: "Алгоритм повторений закрепляет в нужное время.",
+    icon: MessagesSquare,
+    title: "Контекст и примеры",
+    body: "Вы запоминаете не просто символы, а понимание и применение.",
   },
   {
-    icon: Sprout,
-    title: "Вы запоминаете",
-    body: "Информация переходит в долгосрочную память.",
+    icon: CheckCircle2,
+    title: "Прогресс наглядно",
+    body: "Чёткая статистика помогает видеть свои достижения.",
   },
 ];
 
 export function WhyItWorks() {
   return (
-    <section className="relative py-16 sm:py-20 overflow-hidden">
-      <div className="absolute inset-0 bg-[#152e20]" />
+    <section className="relative overflow-hidden bg-[#143425]">
+      {/* Subtle radial light wash */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_25%_40%,oklch(0.55_0.07_150_/_0.18),transparent_55%)]" />
 
-      {/* Top/bottom fade transitions into page background */}
-      <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-[var(--background)] to-transparent z-[1]" />
-      <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[var(--background)] to-transparent z-[1]" />
-
-      {/* Subtle radial glow */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_50%,oklch(0.45_0.06_145_/_0.15),transparent_60%)]" />
-
-      <div className="relative z-[2] max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10">
-        <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-10 lg:gap-16 items-center">
-          {/* Left: heading + panda */}
-          <div className="flex flex-col items-center lg:items-start gap-5 lg:max-w-[280px]">
-            <Image
-              src="/panda/reading_for_web.png"
-              alt=""
-              width={200}
-              height={200}
-              className="w-32 lg:w-40 drop-shadow-[0_6px_20px_rgba(0,0,0,0.25)]"
-            />
-            <h2 className="text-3xl md:text-4xl lg:text-[2.75rem] font-display font-medium tracking-[-0.02em] leading-[1.1] text-white text-center lg:text-left">
-              Почему это
-              <br />
-              <span className="text-[oklch(0.82_0.12_150)]">работает</span>
-            </h2>
+      <div className="relative max-w-[1280px] mx-auto px-5 sm:px-8 lg:px-12 py-16 sm:py-24 grid grid-cols-1 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.5fr)] gap-12 lg:gap-16 items-start">
+        <div className="lg:pt-2">
+          <div className="text-[11px] uppercase tracking-[0.3em] text-[oklch(0.78_0.07_150)] mb-4 font-medium">
+            Почему Minzi работает
           </div>
+          <h2 className="font-display font-medium tracking-[-0.02em] leading-[1.08] text-white text-[2.1rem] sm:text-[2.4rem] lg:text-[2.6rem]">
+            Создано на науке
+            <br />о памяти
+          </h2>
+          <p className="mt-5 text-[oklch(0.84_0.04_145)] text-[14.5px] leading-[1.65] max-w-[380px]">
+            Мы используем проверенные методы когнитивной науки, чтобы обучение
+            было эффективным и комфортным.
+          </p>
+          <Link
+            href="/learn"
+            className="mt-7 inline-flex items-center gap-1.5 text-[14px] text-white border-b border-white/40 hover:border-white pb-0.5 transition-colors"
+          >
+            Узнать больше о методах
+            <ArrowUpRight size={14} strokeWidth={1.7} />
+          </Link>
+        </div>
 
-          {/* Right: 2x2 grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {ITEMS.map(({ icon: Icon, title, body }) => (
-              <div
-                key={title}
-                className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-5 transition-colors duration-200 hover:bg-white/[0.07]"
-              >
-                <div className="flex items-center gap-3 mb-2.5">
-                  <Icon
-                    size={16}
-                    strokeWidth={1.6}
-                    className="text-[oklch(0.82_0.12_150)]"
-                  />
-                  <span className="font-medium tracking-tight text-white text-[15px]">
-                    {title}
-                  </span>
-                </div>
-                <p className="text-[13px] text-[oklch(0.75_0.03_145)] leading-relaxed">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-10">
+          {PILLARS.map(({ icon: Icon, title, body }) => (
+            <div key={title} className="flex flex-col items-start gap-4">
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.08] border border-white/10 text-[oklch(0.86_0.1_150)]">
+                <Icon size={20} strokeWidth={1.5} />
+              </span>
+              <div>
+                <h3 className="font-display font-medium text-[17px] tracking-tight text-white leading-snug">
+                  {title}
+                </h3>
+                <p className="mt-2 text-[13.5px] text-[oklch(0.78_0.04_145)] leading-relaxed">
                   {body}
                 </p>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       </div>
     </section>

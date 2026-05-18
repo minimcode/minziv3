@@ -1,170 +1,82 @@
-import Image from "next/image";
-import Link from "next/link";
-import { Volume2, Pause, ArrowRight } from "lucide-react";
+import { Search, PenLine, RefreshCw, CheckCircle2 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-const STEPS = [
+const STEPS: { n: number; icon: LucideIcon; title: string; body: string }[] = [
   {
     n: 1,
-    title: "Изучайте значение и произношение",
-    body: "Понимайте смысл и контекст использования.",
+    icon: Search,
+    title: "Изучайте",
+    body: "Смысл, произношение и примеры использования.",
   },
   {
     n: 2,
-    title: "Смотрите порядок черт",
-    body: "Смотрите анимацию и запоминайте движения.",
+    icon: PenLine,
+    title: "Пишите",
+    body: "Учитесь правильному порядку черт.",
   },
   {
     n: 3,
-    title: "Пишите сами",
-    body: "Тренируйтесь писать и получайте подсказки.",
+    icon: RefreshCw,
+    title: "Повторяйте",
+    body: "Умные интервалы закрепляют знания надолго.",
   },
   {
     n: 4,
-    title: "Закрепляйте и запоминайте",
-    body: "Повторяйте в нужный момент и помните надолго.",
+    icon: CheckCircle2,
+    title: "Применяйте",
+    body: "Используйте иероглифы в контексте.",
   },
 ];
 
 export function HowItWorks() {
   return (
-    <section id="how" className="py-14 sm:py-20">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10 grid grid-cols-1 lg:grid-cols-[1fr_1.15fr] gap-10 lg:gap-14 items-center">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.25em] text-[var(--foreground-soft)] mb-3 font-medium">
-            Как проходит обучение
+    <section id="how" className="relative py-16 sm:py-24 bg-[var(--surface-2)]">
+      <div className="max-w-[1280px] mx-auto px-5 sm:px-8 lg:px-12 grid grid-cols-1 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.4fr)] gap-12 lg:gap-16 items-start">
+        <div className="lg:pt-4">
+          <div className="text-[11px] uppercase tracking-[0.3em] text-[var(--foreground-soft)] mb-4 font-medium">
+            Как это работает
           </div>
-          <h2 className="text-3xl md:text-4xl lg:text-[2.75rem] font-display font-medium tracking-[-0.02em] leading-[1.1]">
+          <h2 className="font-display font-medium tracking-[-0.02em] leading-[1.08] text-[2.1rem] sm:text-[2.4rem] lg:text-[2.6rem]">
             От первой черты
             <br />
             до уверенного письма
           </h2>
-          <ol className="mt-7 space-y-4">
-            {STEPS.map(({ n, title, body }) => (
-              <li key={n} className="flex gap-4 items-start">
-                <div className="h-7 w-7 shrink-0 rounded-full bg-[var(--green)] text-white flex items-center justify-center text-xs font-semibold">
+          <p className="mt-5 text-[var(--foreground-muted)] text-[15px] leading-[1.65] max-w-[360px]">
+            Пошаговый путь, который делает сложное простым и понятным.
+          </p>
+        </div>
+
+        <div className="relative">
+          {/* Connecting dashed line between steps (desktop) */}
+          <div
+            aria-hidden
+            className="absolute top-[58px] left-[12%] right-[12%] border-t border-dashed border-[var(--border-strong)] hidden md:block"
+          />
+          <ol className="relative grid grid-cols-2 md:grid-cols-4 gap-4">
+            {STEPS.map(({ n, icon: Icon, title, body }) => (
+              <li
+                key={n}
+                className="relative rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 pt-7 flex flex-col items-start gap-3 min-h-[200px]"
+              >
+                <div className="absolute -top-3 left-5 inline-flex items-center justify-center h-6 w-6 rounded-full bg-[var(--green)] text-white text-[11px] font-semibold shadow-[0_2px_6px_-2px_rgba(46,125,79,0.5)]">
                   {n}
                 </div>
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--green-soft)] text-[var(--green-deep)]">
+                  <Icon size={16} strokeWidth={1.7} />
+                </span>
                 <div>
-                  <div className="font-medium text-[15px] tracking-tight">
+                  <h3 className="font-display font-medium text-[18px] tracking-tight">
                     {title}
-                  </div>
-                  <div className="text-sm text-[var(--foreground-muted)] mt-0.5 leading-relaxed">
+                  </h3>
+                  <p className="mt-1.5 text-[13.5px] text-[var(--foreground-muted)] leading-relaxed">
                     {body}
-                  </div>
+                  </p>
                 </div>
               </li>
             ))}
           </ol>
-          <div className="mt-7">
-            <Link href="/learn" className="btn btn-secondary group text-sm">
-              Попробовать демо-урок
-              <ArrowRight
-                size={14}
-                className="transition-transform group-hover:translate-x-0.5"
-              />
-            </Link>
-          </div>
-        </div>
-
-        <div className="relative grid grid-cols-3 gap-2.5">
-          <MockCard title="Значение">
-            <div className="hanzi text-6xl text-center">你</div>
-            <div className="pinyin text-center text-[var(--foreground-muted)] mt-2">
-              nǐ
-            </div>
-            <div className="text-center text-sm mt-1">ты, вы</div>
-            <div className="text-[10px] uppercase tracking-wider mt-3 text-[var(--foreground-soft)]">
-              Примеры
-            </div>
-            <div className="mt-1.5 grid gap-1">
-              <Example han="你好" pin="nǐ hǎo" ru="привет" />
-              <Example han="你们" pin="nǐ men" ru="вы (мн. ч.)" />
-            </div>
-          </MockCard>
-          <MockCard title="Порядок черт" hi>
-            <div className="cali-grid border border-[var(--border)] rounded-md p-1 mt-1">
-              <div className="hanzi text-7xl text-center text-[var(--ink)]">
-                <span style={{ color: "#c43a3a" }}>你</span>
-              </div>
-            </div>
-            <div className="text-center mt-2.5 text-xs text-[var(--foreground-muted)]">
-              2 / 6
-            </div>
-            <div className="flex items-center justify-center gap-2 mt-2.5">
-              <button className="btn btn-ghost h-8 w-8 p-0">
-                <ArrowRight size={14} className="rotate-180" />
-              </button>
-              <button className="btn btn-primary h-9 w-9 p-0">
-                <Pause size={14} />
-              </button>
-              <button className="btn btn-ghost h-8 w-8 p-0">
-                <ArrowRight size={14} />
-              </button>
-            </div>
-          </MockCard>
-          <MockCard title="Практика">
-            <div className="cali-grid border border-[var(--border)] rounded-md p-1">
-              <div className="hanzi text-7xl text-center text-[var(--foreground-soft)]">
-                你
-              </div>
-            </div>
-            <div className="bg-[var(--surface-2)] rounded-md mt-2.5 px-2.5 py-1.5">
-              <div className="text-[var(--foreground-muted)] text-xs">
-                你 теперь живёт в вашей библиотеке.
-              </div>
-            </div>
-            <button className="btn btn-primary w-full mt-2.5 h-8 text-xs">
-              Далее <ArrowRight size={12} />
-            </button>
-          </MockCard>
         </div>
       </div>
     </section>
-  );
-}
-
-function MockCard({
-  title,
-  hi,
-  children,
-}: {
-  title: string;
-  hi?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className={`rounded-lg p-3 flex flex-col gap-1 bg-[var(--surface)] border border-[var(--border)] shadow-sm ${hi ? "shadow-md scale-[1.03] z-[1]" : ""}`}
-    >
-      <div className="flex items-center justify-between text-[11px] text-[var(--foreground-muted)]">
-        <span className="flex items-center gap-1">
-          <ArrowRight size={10} className="rotate-180" /> {title}
-        </span>
-        <Volume2 size={10} />
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function Example({
-  han,
-  pin,
-  ru,
-}: {
-  han: string;
-  pin: string;
-  ru: string;
-}) {
-  return (
-    <div className="flex items-baseline gap-2">
-      <span className="hanzi text-base">{han}</span>
-      <span className="pinyin text-[10px] text-[var(--foreground-muted)]">
-        {pin}
-      </span>
-      <span className="text-[10px] text-[var(--foreground-muted)] ml-auto">
-        {ru}
-      </span>
-    </div>
   );
 }

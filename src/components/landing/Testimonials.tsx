@@ -1,51 +1,70 @@
-const REVIEWS = [
+import Image from "next/image";
+
+const REVIEWS: { name: string; sub: string; body: string }[] = [
   {
-    name: "Анна",
-    sub: "6 месяцев",
-    body: "Раньше постоянно забывала иероглифы. С Minzi наконец начала их писать и лучше понимать. Результат ощущается!",
+    name: "Анна К.",
+    sub: "изучает 8 месяцев",
+    body: "Раньше я путалась в чертах и быстро забывала иероглифы. С Minzi всё стало на свои места — пишу красиво и запоминаю надолго.",
   },
   {
-    name: "Дмитрий",
-    sub: "1 год",
-    body: "Очень нравится практика письма и подсказки по чертам. Чувствую, как растёт уверенность.",
+    name: "Дмитрий Л.",
+    sub: "изучает 1 год",
+    body: "Понравился подход через письмо и умные повторения. Прогресс видно с первой недели.",
   },
   {
-    name: "Екатерина",
-    sub: "6 месяцев",
-    body: "Удобные повторения\u00a0— не надо думать, когда повторять, приложение само напоминает. Очень помогает!",
+    name: "Екатерина М.",
+    sub: "изучает 6 месяцев",
+    body: "Это лучшее приложение для изучения китайского, что я пробовала.",
   },
 ];
 
 export function Testimonials() {
   return (
-    <section id="testimonials" className="py-12 sm:py-16">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10">
-        <div className="text-[11px] uppercase tracking-[0.25em] text-[var(--foreground-soft)] mb-3 font-medium">
-          Отзывы
+    <section id="testimonials" className="relative overflow-hidden py-16 sm:py-24">
+      {/* Ink-wash mountains decoration on the left */}
+      <Image
+        src="/bg/bg_mist_pine.png"
+        alt=""
+        width={520}
+        height={520}
+        className="absolute left-[-80px] bottom-[-40px] w-[340px] lg:w-[420px] opacity-55 pointer-events-none select-none hidden md:block"
+      />
+
+      <div className="relative max-w-[1280px] mx-auto px-5 sm:px-8 lg:px-12 grid grid-cols-1 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.5fr)] gap-12 lg:gap-16 items-start">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.3em] text-[var(--foreground-soft)] mb-4 font-medium">
+            Отзывы
+          </div>
+          <h2 className="font-display font-medium tracking-[-0.02em] leading-[1.08] text-[2.1rem] sm:text-[2.4rem] lg:text-[2.6rem]">
+            Что говорят
+            <br />
+            ученики
+          </h2>
         </div>
-        <h2 className="text-3xl md:text-4xl font-display font-medium tracking-[-0.02em] leading-[1.1] mb-8">
-          Что говорят ученики
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {REVIEWS.map((r) => (
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {REVIEWS.map((r, i) => (
             <figure
               key={r.name}
-              className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5 transition-colors duration-150 hover:bg-[var(--surface-2)]"
+              className={`rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 flex flex-col gap-5 transition-colors duration-150 hover:bg-[var(--surface-2)] ${i === 0 ? "md:row-span-2" : ""}`}
             >
-              <div className="flex items-center gap-3 mb-3">
-                <div className="h-9 w-9 rounded-full bg-[var(--green-soft)] border border-[var(--border)] flex items-center justify-center text-sm font-medium text-[var(--green-deep)]">
-                  {r.name[0]}
-                </div>
-                <figcaption>
-                  <div className="font-medium text-sm">{r.name}</div>
-                  <div className="text-xs text-[var(--foreground-muted)]">
-                    {r.sub}
-                  </div>
-                </figcaption>
-              </div>
-              <blockquote className="text-sm text-[var(--foreground)] leading-relaxed">
-                &ldquo;{r.body}&rdquo;
+              <span
+                aria-hidden
+                className="font-display text-[3rem] leading-none text-[var(--foreground-soft)]/55 -mb-3"
+              >
+                &ldquo;
+              </span>
+              <blockquote className="text-[14.5px] text-[var(--foreground)] leading-[1.65] flex-1">
+                {r.body}
               </blockquote>
+              <figcaption className="mt-1">
+                <div className="font-medium text-[14px] text-[var(--foreground)]">
+                  {r.name}
+                </div>
+                <div className="text-[12.5px] text-[var(--foreground-muted)] mt-0.5">
+                  {r.sub}
+                </div>
+              </figcaption>
             </figure>
           ))}
         </div>
