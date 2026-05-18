@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
+import { LogoMark } from "./LogoMark";
 
 const NAV: { href: string; label: string }[] = [
   { href: "#features", label: "Возможности" },
@@ -11,17 +11,15 @@ const NAV: { href: string; label: string }[] = [
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-30 backdrop-blur-lg bg-[var(--background)]/70 border-b border-[var(--border)]/60">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10 h-14 flex items-center gap-6">
-        <Link href="/" className="flex items-center gap-2.5 mr-2">
-          <Image src="/icon.svg" alt="" width={32} height={32} />
-          <div className="leading-tight">
-            <div className="text-lg font-display font-semibold tracking-tight">
-              Minzi
-            </div>
-          </div>
+    <header className="sticky top-0 z-30 backdrop-blur-md bg-[var(--background)]/85 border-b border-[var(--border)]/50">
+      <div className="max-w-[1280px] mx-auto px-5 sm:px-8 lg:px-12 h-16 flex items-center gap-8">
+        <Link href="/" className="flex items-center gap-2.5 shrink-0">
+          <LogoMark />
+          <span className="text-[19px] font-display font-semibold tracking-tight text-[var(--foreground)]">
+            Minzi
+          </span>
         </Link>
-        <nav className="hidden md:flex items-center gap-7 text-sm text-[var(--foreground-muted)] flex-1 min-w-0">
+        <nav className="hidden md:flex items-center gap-8 text-[14px] text-[var(--foreground-muted)] flex-1 min-w-0">
           {NAV.map((n) => (
             <a
               key={n.href}
@@ -32,16 +30,16 @@ export function Header() {
             </a>
           ))}
         </nav>
-        <div className="ml-auto flex items-center gap-3 shrink-0">
+        <div className="ml-auto flex items-center gap-5 shrink-0">
           <Link
             href="/login"
-            className="text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors hidden sm:block"
+            className="text-[14px] text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors hidden sm:block"
           >
             Войти
           </Link>
           <Link
             href="/learn"
-            className="btn btn-primary h-10 text-sm whitespace-nowrap"
+            className="btn btn-primary h-10 px-5 text-[14px] whitespace-nowrap"
           >
             Начать бесплатно
           </Link>
