@@ -1564,16 +1564,24 @@ function ReviewPageInner() {
               )}
             </div>
 
-            {/* Hero ink illustration — bamboo + tea bowl + seal. Hidden
-                on narrow phones so the page doesn't feel cramped. */}
-            <div className="hidden sm:flex relative h-[260px] items-end justify-end">
+            {/* Hero ink illustration — bamboo branch fading softly into
+                the page on the side facing the text, so the edge never
+                hard-cuts. Hidden on narrow phones so the page doesn't
+                feel cramped. */}
+            <div className="hidden sm:flex relative h-[280px] items-end justify-end">
               <Image
-                src="/bg/bg_bamboo_branch.png"
+                src="/bg/bg_bamboo_right.png"
                 alt=""
-                width={520}
-                height={520}
+                width={640}
+                height={640}
                 aria-hidden
-                className="absolute inset-0 w-full h-full object-contain object-right-bottom opacity-90 pointer-events-none select-none"
+                className="absolute inset-0 w-full h-full object-contain object-right-bottom opacity-95 pointer-events-none select-none"
+                style={{
+                  WebkitMaskImage:
+                    "linear-gradient(to right, transparent 0%, rgba(0,0,0,0.4) 22%, #000 50%)",
+                  maskImage:
+                    "linear-gradient(to right, transparent 0%, rgba(0,0,0,0.4) 22%, #000 50%)",
+                }}
                 priority
               />
               <SealMark className="absolute bottom-3 right-3 shadow-sm" />
@@ -1843,12 +1851,28 @@ function ReviewPageInner() {
 
         {/* ── EMPTY DUE — gentle resting state ─────────────────────── */}
         {dueCnt === 0 && hasAnyStudied && (
-          <Card className="mb-6 p-7 text-center">
-            <Panda mood="success" size={80} className="mx-auto mb-3 opacity-90" />
-            <h2 className="font-display text-[20px] font-medium mb-1.5">
+          <Card className="mb-6 p-7 text-center relative overflow-hidden">
+            {/* Decorative bamboo on the far left, fading into the card so it
+                reads as a quiet background rather than an attached image. */}
+            <Image
+              src="/bg/bg_bamboo_left.png"
+              alt=""
+              width={420}
+              height={420}
+              aria-hidden
+              className="hidden sm:block absolute left-0 bottom-0 h-full w-[260px] object-contain object-left-bottom opacity-60 pointer-events-none select-none"
+              style={{
+                WebkitMaskImage:
+                  "linear-gradient(to left, transparent 0%, rgba(0,0,0,0.4) 25%, #000 55%)",
+                maskImage:
+                  "linear-gradient(to left, transparent 0%, rgba(0,0,0,0.4) 25%, #000 55%)",
+              }}
+            />
+            <Panda mood="success" size={80} className="relative mx-auto mb-3 opacity-90" />
+            <h2 className="relative font-display text-[20px] font-medium mb-1.5">
               Все возвращения сделаны.
             </h2>
-            <p className="text-[14px] text-[var(--foreground-muted)] max-w-sm mx-auto leading-relaxed">
+            <p className="relative text-[14px] text-[var(--foreground-muted)] max-w-sm mx-auto leading-relaxed">
               {upcoming.count > 0 ? (
                 <>
                   Знаки вернутся {formatRelativeIn(upcoming.nextDueMs)}. До тех пор
@@ -1858,7 +1882,7 @@ function ReviewPageInner() {
                 <>Тихий день. Загляните в сад или откройте новый урок.</>
               )}
             </p>
-            <div className="mt-4 flex items-center justify-center gap-2">
+            <div className="relative mt-4 flex items-center justify-center gap-2">
               <Link
                 href="/learn"
                 className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] text-[var(--green-deep)] bg-[color:rgba(46,125,79,0.10)] hover:bg-[color:rgba(46,125,79,0.16)] transition-colors"
@@ -1898,14 +1922,20 @@ function ReviewPageInner() {
                   Так память укрепляется без перегрузки.
                 </p>
               </div>
-              <div className="hidden sm:block relative h-[130px] -my-2">
+              <div className="hidden sm:block relative h-[150px] -my-2">
                 <Image
                   src="/bg/bg_mountain_sun.png"
                   alt=""
-                  width={300}
-                  height={300}
+                  width={360}
+                  height={360}
                   aria-hidden
-                  className="absolute inset-0 w-full h-full object-contain object-right opacity-70 pointer-events-none select-none"
+                  className="absolute inset-0 w-full h-full object-contain object-right opacity-80 pointer-events-none select-none"
+                  style={{
+                    WebkitMaskImage:
+                      "linear-gradient(to right, transparent 0%, rgba(0,0,0,0.35) 18%, #000 45%)",
+                    maskImage:
+                      "linear-gradient(to right, transparent 0%, rgba(0,0,0,0.35) 18%, #000 45%)",
+                  }}
                 />
               </div>
             </div>
