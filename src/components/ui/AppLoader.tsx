@@ -32,19 +32,31 @@ const ZI_STROKES = [
   "M 508 451 Q 499 452 299 429 Q 227 419 121 418 Q 108 418 106 406 Q 105 393 124 378 Q 142 365 174 353 Q 186 349 204 357 Q 222 363 297 375 Q 393 397 513 407 L 562 411 Q 769 430 888 417 Q 937 417 940 418 Q 940 421 942 421 Q 949 434 937 447 Q 864 513 800 491 Q 739 479 675 469 Q 605 463 557 457 L 508 451 Z",
 ];
 
+// Timing for one full writing cycle. Each stroke runs 620ms (matches the
+// CSS `app-splash-stroke-write` animation duration) and starts 360ms
+// after the previous one — so the brush feels continuous instead of
+// pausing between strokes. Last stroke ends at 360 * (n-1) + 620 ms;
+// for n=3 that's 1340 ms. We then add a calm ~360 ms breath before the
+// splash fades out so the finished 子 is briefly held in view.
+const STROKE_STEP_MS = 360;
+const STROKE_DURATION_MS = 620;
+const HOLD_AFTER_WRITE_MS = 360;
+const FADE_OUT_DURATION_MS = 380;
+
 export function AppLoader() {
   const [leaving, setLeaving] = useState(false);
   const [gone, setGone] = useState(false);
 
   useEffect(() => {
-    // One frame for the browser to paint the splash, then start fading
-    // out so the actual app shell becomes visible underneath.
-    const fadeIn = requestAnimationFrame(() => setLeaving(true));
-    // Match the CSS fade-out duration so we can fully unmount and stop
-    // animating without blocking interactions.
-    const remove = window.setTimeout(() => setGone(true), 520);
+    const writeEnd =
+      STROKE_STEP_MS * (ZI_STROKES.length - 1) + STROKE_DURATION_MS;
+    const startFadeAt = writeEnd + HOLD_AFTER_WRITE_MS;
+    const removeAt = startFadeAt + FADE_OUT_DURATION_MS;
+
+    const fade = window.setTimeout(() => setLeaving(true), startFadeAt);
+    const remove = window.setTimeout(() => setGone(true), removeAt);
     return () => {
-      cancelAnimationFrame(fadeIn);
+      clearTimeout(fade);
       clearTimeout(remove);
     };
   }, []);
@@ -73,7 +85,7 @@ export function AppLoader() {
                 fill="var(--ink, #1a1c18)"
                 stroke="none"
                 style={{
-                  animationDelay: `${i * 460}ms`,
+                  animationDelay: `${i * STROKE_STEP_MS}ms`,
                 }}
                 className="app-splash-stroke"
               />

@@ -339,3 +339,111 @@ body {
     animation: none;
   }
 }
+
+/* ─── Cold-start splash (子 stroke-order writing) ───────────────────────
+   Rendered by <AppLoader/> at the very top of the body. Stays visible
+   for ~1800ms so even fast desktops see one full writing cycle before
+   it fades into the app shell. Each stroke uses a clip-path wipe so it
+   reveals left-to-right (acceptable approximation of the brush motion
+   for the simple 子 glyph). */
+.app-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  transition: opacity 380ms cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+.app-splash[data-leaving="true"] {
+  opacity: 0;
+}
+.app-splash-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.app-splash-zi {
+  display: block;
+  filter: drop-shadow(0 2px 6px rgba(28, 35, 30, 0.06));
+}
+.app-splash-stroke {
+  clip-path: inset(0 100% 0 0);
+  animation: app-splash-stroke-write 620ms cubic-bezier(0.33, 1, 0.68, 1) both;
+}
+@keyframes app-splash-stroke-write {
+  0%   { clip-path: inset(0 100% 0 0); }
+  100% { clip-path: inset(0 0 0 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-splash-stroke {
+    clip-path: none;
+    animation: none;
+  }
+  .app-splash {
+    transition: none;
+  }
+}
+
+/* ─── Dark theme overrides ──────────────────────────────────────────────
+   The pre-paint script in <RootLayout> adds `theme-dark` on <html> when
+   the user's preference is dark (or system + OS-dark). Everything below
+   re-shapes the token palette; component code already reads
+   var(--token) names so individual styles don't need to change. */
+.theme-dark {
+  --background: #131614;
+  --surface: #1a1e1b;
+  --surface-2: #222724;
+  --surface-3: #2c322d;
+  --foreground: #ecede8;
+  --foreground-muted: #a4ada3;
+  --foreground-soft: #707a6f;
+  --border: #2b322d;
+  --border-strong: #3c443d;
+
+  --green-soft: rgba(46, 125, 79, 0.22);
+  --green-deep: #6bbf8b;
+  --green-ink: #b8e0c4;
+  --red-soft: rgba(196, 58, 58, 0.22);
+  --red-deep: #e16b6b;
+  --ink: #ecede8;
+  --bamboo-soft: rgba(90, 138, 79, 0.18);
+
+  --stroke-default: #ecede8;
+  --stroke-hint: #3a4040;
+  --stroke-grid: #2a2f2b;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 6px 16px -8px rgba(0, 0, 0, 0.55),
+    0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 18px 40px -16px rgba(0, 0, 0, 0.65),
+    0 6px 14px -10px rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset,
+    0 6px 18px -12px rgba(0, 0, 0, 0.6),
+    0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.theme-dark body {
+  color-scheme: dark;
+}
+/* Re-tint the atmospheric rice background for dark mode (darker, slightly
+   warmer green wash instead of the light paper feel). */
+.theme-dark .bg-rice {
+  background-color: var(--background);
+  background-image:
+    radial-gradient(1000px 500px at 75% -5%, oklch(0.38 0.05 145 / 0.18), transparent 60%),
+    radial-gradient(800px 600px at -5% 25%, oklch(0.32 0.04 145 / 0.12), transparent 55%);
+}
+/* Streak pill uses hard-coded warm light tones — soften them for dark. */
+.theme-dark .streak-pill {
+  background: linear-gradient(180deg, rgba(214, 128, 28, 0.18) 0%, rgba(154, 74, 26, 0.22) 100%);
+  border-color: rgba(214, 128, 28, 0.4);
+  color: #f1c98a;
+}
+/* Selection highlight: deeper green so light text stays legible. */
+.theme-dark ::selection {
+  background: rgba(107, 191, 139, 0.35);
+}
