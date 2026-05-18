@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LogoMark } from "./LogoMark";
 
 const NAV: { heading: string; links: { label: string; href: string }[] }[] = [
   {
@@ -35,12 +36,7 @@ export function Footer() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.4fr_repeat(3,1fr)] gap-10 lg:gap-12">
           <div className="max-w-[320px]">
             <Link href="/" className="flex items-center gap-2.5 mb-4">
-              <span
-                aria-hidden
-                className="h-9 w-9 rounded-[9px] bg-[var(--red)] text-white font-hanzi text-[20px] flex items-center justify-center leading-none"
-              >
-                字
-              </span>
+              <LogoMark size={36} />
               <span className="text-[18px] font-display font-medium tracking-tight text-[var(--foreground)]">
                 Minzi
               </span>
